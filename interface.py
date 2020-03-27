@@ -22,6 +22,9 @@ ArenaFloor = 2
 xPos = 0
 zPos = 0
 
+video_height = 300
+video_width = 400
+
 # Create random objects in the arena
 
 def GenRandomObject(nb, xPos, zPos, ArenaSide, ArenaFloor):
@@ -70,13 +73,13 @@ def GetVisualField(side,yaw,vf=70) :
     left = yaw + vf/2
     aLeft = getA(DistanceMax,left,pos)
     bLeft = getB(aLeft,left,pos)
-    print("left : (a = ",aLeft," ; b = ",bLeft," )")
+    # print("left : (a = ",aLeft," ; b = ",bLeft," )")
 
     # get the right line
     right = yaw - vf/2
     aRight = getA(DistanceMax,right,pos)
     bRight = getB(aRight,right,pos)
-    print("right : (a = ",aRight," ; b = ",bRight," )")
+    # print("right : (a = ",aRight," ; b = ",bRight," )")
 
     # get the minimum and maximum a's
     aMin = int(min(aRight,aLeft))
@@ -154,6 +157,29 @@ def VisualizeFrontVison(FrontVision) :
     print(" ")
 
 
+# Get ant's view (Ardin et al, 2016)
+
+def getAntView(h,w,pixels):
+    ant_view = []
+    id_RGBD = id_pixels = 0
+    while id_pixels < h*w*4 :
+        if id_RGBD == 0:
+            ant_view.append(pixels[id_pixels]*0.2126)
+        elif id_RGBD == 1:
+            ant_view[-1] += pixels[id_pixels]*0.7152
+        elif id_RGBD == 2:
+            ant_view[-1] += pixels[id_pixels]*0.0722
+        elif id_RGBD == 3:
+            id_RGBD = -1
+        id_RGBD += 1
+        id_pixels +=1
+    
+    # formula for B&W : Luminance = 0,2126 × Rouge + 0,7152 × Vert + 0,0722 × Bleu
+    print("Size ant_view :", len(ant_view))
+    print("Video size :", video_width*video_height)
+    return ant_view
+
+
 # Get a dictionnary of the objects that can be seen by the agent
 
 def GetObjects(grid,side) :
@@ -229,13 +255,17 @@ missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
                     </ObservationFromGrid>
                     <ContinuousMovementCommands turnSpeedDegs="180"/>
                     <InventoryCommands/>
+                    <VideoProducer want_depth="true">
+                        <Width>'''+str(video_width)+'''</Width>
+                        <Height>'''+str(video_height)+'''</Height>
+                    </VideoProducer>
                 </AgentHandlers>
               </AgentSection>
             </Mission>'''
 
- 
 
 agent_host = MalmoPython.AgentHost()
+agent_host.setVideoPolicy(MalmoPython.VideoPolicy.KEEP_ALL_FRAMES)
 try:
     agent_host.parse( sys.argv )
 except RuntimeError as e:
@@ -253,7 +283,8 @@ my_mission_record = MalmoPython.MissionRecordSpec()
 max_retries = 3
 for retry in range(max_retries):
     try:
-        agent_host.startMission( my_mission, my_mission_record )
+        # agent_host.startMission( my_mission, my_client_pool, my_mission_record, 0, 42 )
+        agent_host.startMission(my_mission, my_mission_record)
         break
     except RuntimeError as e:
         if retry == max_retries - 1:
@@ -295,24 +326,41 @@ while world_state.is_mission_running :
         # VisualizeFrontVison(ObsEnv["FrontEnv"])  # => to visualize the frontal vision as seen by the agent
 
         ### the important informations are contained in the dictionnary ObsEnv
-        print(ObsEnv.keys())
+        # print(ObsEnv.keys())
         
-        print("")
-        VisualizeFrontVison(ObsEnv["FrontEnv"])
+        # print("")
+        # VisualizeFrontVison(ObsEnv["FrontEnv"])
+
+        ant_view = getAntView(video_height,video_width,world_state.video_frames[0].pixels)
+        f = open("ant_view.txt",'w')
+        for value in ant_view:
+            f.write(str(value)+" ")
+        f.close()
+
+        # pix_id = 1
+        # dico_id = {1: "R: ", 2: "G: ", 3: "B: ", 4: "depth: "}
+        # for pix in world_state.video_frames[0].pixels[479980:480020]:
+        #     print(dico_id[pix_id], pix)
+        #     if pix_id < 4 :
+        #         pix_id += 1
+        #     else :
+        #         pix_id = 1
         
         com=input("commande : ")
         if com=="z":
             agent_host.sendCommand("move 1")
             time.sleep(0.25)
             agent_host.sendCommand("move 0")
-        if com=="q":
+        elif com=="q":
             agent_host.sendCommand("turn -1")
             time.sleep(0.25)
             agent_host.sendCommand("turn 0")
-        if com=="d":
+        elif com=="d":
             agent_host.sendCommand("turn 1")
             time.sleep(0.25)
             agent_host.sendCommand("turn 0")
+        else : 
+            com=input("command (only q, z or d): ")
 
 print()
 print("Mission ended")
