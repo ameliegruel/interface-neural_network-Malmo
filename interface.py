@@ -27,27 +27,29 @@ video_width = 400
 
 # Create random objects in the arena
 
-def GenRandomObject(nb, xPos, zPos, ArenaSide, ArenaFloor):
+def GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor):
+    print("Waiting for the world to load ", end=' ')
+    # we want 2 obstacles in a 10cm*10cm region => for 1cm*1cm = 1block*1block, we need 0.05obstacles
+    nb = int(0.02*ArenaSide*ArenaSide)
     RandomObjectXML = ""
     BlockType = "redstone_block"
-    ObjHeight = [3,4]
+    ObjHeight = [2,3,4,5]
     ObjWidth = [1,2]
-    PreviousX = [xPos]
-    PreviousZ = [zPos]
     max = old_div(ArenaSide,2)
-    for i in range(nb) :
+    PreviousCoord = [[x,z] for x in range(xPos-1, xPos+2) for z in range(zPos-1, zPos+2)]
+    for i in range(10000) :
+        if i % 50 == 0 :
+            print(".", end="")
         height = random.choice(ObjHeight)
         width = random.choice(ObjWidth)
-        x = xPos
-        z = zPos
-        while x in PreviousX :
+        [x0,z0] = [xPos, zPos]
+        while [x0,z0] in PreviousCoord :
             x0 = random.randint(-max,max)
-        while z in PreviousZ :
             z0 = random.randint(-max,max)
         for [x,y,z] in [[x0+x, ArenaFloor+y, z0+z] for x in range(width) for y in range(height) for z in range(width)]:
             RandomObjectXML += '<DrawBlock type="' + BlockType + '" x="' + str(x) + '" y="' + str(y) + '" z="' + str(z) + '"/>'
-            PreviousX.append(x)
-            PreviousZ.append(z)
+            PreviousCoord.append([x,z])
+    print()
     return RandomObjectXML
 
 
@@ -236,7 +238,7 @@ missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
                     <FlatWorldGenerator generatorString="3;1,2*2,9*3,2;2;"/>
                     <DrawingDecorator>
                         <DrawCuboid type="air" x1="''' + str(old_div(-ArenaSide,2)) + '''" y1="''' + str(ArenaFloor) + '''" z1="''' + str(old_div(-ArenaSide,2)) + '''" x2="''' + str(old_div(ArenaSide,2)) + '''" y2="20" z2="''' + str(old_div(ArenaSide,2)) + '''"/>
-                        ''' + GenRandomObject(20, xPos, zPos, ArenaSide, ArenaFloor) + '''
+                        ''' + GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor) + '''
                     </DrawingDecorator>
                     <ServerQuitFromTimeUp timeLimitMs="3600000"/>
                     <ServerQuitWhenAnyAgentFinishes/>
