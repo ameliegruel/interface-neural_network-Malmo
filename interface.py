@@ -17,7 +17,15 @@ else:
     import functools
     print = functools.partial(print, flush=True)
 
-ArenaSide = 1000
+
+
+
+#####################################################################################
+####################### WORLD INITIALISATION ########################################
+#####################################################################################
+
+
+ArenaSide = 1000 # the agent's size is 1 block = 1 cm (for an ant) => the agent evolves in an arena of diameter 10m*10m
 ArenaFloor = 2
 xPos = 0
 zPos = 0
@@ -37,7 +45,7 @@ def GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor):
     ObjWidth = [1,2]
     max = old_div(ArenaSide,2)
     PreviousCoord = [[x,z] for x in range(xPos-1, xPos+2) for z in range(zPos-1, zPos+2)]
-    for i in range(10000) :
+    for i in range(nb) :
         if i % 50 == 0 :
             print(".", end="")
         height = random.choice(ObjHeight)
@@ -51,6 +59,77 @@ def GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor):
             PreviousCoord.append([x,z])
     print()
     return RandomObjectXML
+
+
+
+
+
+
+#########################################################################################################
+############################################# XML #######################################################
+#########################################################################################################
+
+missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+            <Mission xmlns="http://ProjectMalmo.microsoft.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            
+              <About>
+                <Summary>Interface</Summary>
+              </About>
+              
+            <ServerSection>
+              <ServerInitialConditions>
+                <Time>
+                    <StartTime>1000</StartTime>
+                    <AllowPassageOfTime>false</AllowPassageOfTime>
+                </Time>
+                <Weather>clear</Weather>
+              </ServerInitialConditions>
+              <ServerHandlers>
+                    <FlatWorldGenerator generatorString="3;1,12*35:5;2;"/>
+                    <DrawingDecorator>
+                        <DrawCuboid type="air" x1="''' + str(old_div(-ArenaSide,2)) + '''" y1="''' + str(ArenaFloor) + '''" z1="''' + str(old_div(-ArenaSide,2)) + '''" x2="''' + str(old_div(ArenaSide,2)) + '''" y2="20" z2="''' + str(old_div(ArenaSide,2)) + '''"/>
+                        ''' + GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor) + '''
+                    </DrawingDecorator>
+                    <ServerQuitFromTimeUp timeLimitMs="3600000"/>
+                    <ServerQuitWhenAnyAgentFinishes/>
+                </ServerHandlers>
+              </ServerSection>
+              
+              <AgentSection mode="Survival">
+                <Name>MalmoTutorialBot</Name>
+                <AgentStart>
+                    <Placement x="0" y="''' + str(ArenaFloor) + '''" z="0" yaw="0"/>
+                    <Inventory>
+                        <InventoryItem slot="8" type="diamond_pickaxe"/>
+                    </Inventory>
+                </AgentStart>
+                <AgentHandlers>
+                    <ObservationFromFullStats/>
+                    <ObservationFromGrid>
+                        <Grid name="FrontEnv21x21">
+                            <min x="-10" y="0" z="-10"/>
+                            <max x="10" y="0" z="10"/>
+                        </Grid>
+                    </ObservationFromGrid>
+                    <ContinuousMovementCommands turnSpeedDegs="180"/>
+                    <InventoryCommands/>
+                    <VideoProducer want_depth="true">
+                        <Width>'''+str(video_width)+'''</Width>
+                        <Height>'''+str(video_height)+'''</Height>
+                    </VideoProducer>
+                </AgentHandlers>
+              </AgentSection>
+            </Mission>'''
+
+
+
+
+
+
+
+#############################################################################################
+############################ GET SENSORY INFORMATION ########################################
+#############################################################################################
 
 
 # Get the correct Yaw (strictly between 180 and -180) at each time
@@ -180,11 +259,8 @@ def getAntView(h,w,pixels):
         elif id_RGBD == 3:
             id_RGBD = -1
         id_RGBD += 1
-        id_pixels +=1
-    
+        id_pixels +=1  
     # formula for B&W : Luminance = 0,2126 × Rouge + 0,7152 × Vert + 0,0722 × Bleu
-    print("Size ant_view :", len(ant_view))
-    print("Video size :", video_width*video_height)
     return ant_view
 
 
@@ -219,58 +295,14 @@ def GetObjects(grid,side) :
     return DistanceObjects
 
 
-missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
-            <Mission xmlns="http://ProjectMalmo.microsoft.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-            
-              <About>
-                <Summary>Interface</Summary>
-              </About>
-              
-            <ServerSection>
-              <ServerInitialConditions>
-                <Time>
-                    <StartTime>1000</StartTime>
-                    <AllowPassageOfTime>false</AllowPassageOfTime>
-                </Time>
-                <Weather>clear</Weather>
-              </ServerInitialConditions>
-              <ServerHandlers>
-                    <FlatWorldGenerator generatorString="3;1,2*2,9*3,2;2;"/>
-                    <DrawingDecorator>
-                        <DrawCuboid type="air" x1="''' + str(old_div(-ArenaSide,2)) + '''" y1="''' + str(ArenaFloor) + '''" z1="''' + str(old_div(-ArenaSide,2)) + '''" x2="''' + str(old_div(ArenaSide,2)) + '''" y2="20" z2="''' + str(old_div(ArenaSide,2)) + '''"/>
-                        ''' + GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor) + '''
-                    </DrawingDecorator>
-                    <ServerQuitFromTimeUp timeLimitMs="3600000"/>
-                    <ServerQuitWhenAnyAgentFinishes/>
-                </ServerHandlers>
-              </ServerSection>
-              
-              <AgentSection mode="Survival">
-                <Name>MalmoTutorialBot</Name>
-                <AgentStart>
-                    <Placement x="0" y="''' + str(ArenaFloor) + '''" z="0" yaw="0"/>
-                    <Inventory>
-                        <InventoryItem slot="8" type="diamond_pickaxe"/>
-                    </Inventory>
-                </AgentStart>
-                <AgentHandlers>
-                    <ObservationFromFullStats/>
-                    <ObservationFromGrid>
-                        <Grid name="FrontEnv21x21">
-                            <min x="-10" y="0" z="-10"/>
-                            <max x="10" y="0" z="10"/>
-                        </Grid>
-                    </ObservationFromGrid>
-                    <ContinuousMovementCommands turnSpeedDegs="180"/>
-                    <InventoryCommands/>
-                    <VideoProducer want_depth="true">
-                        <Width>'''+str(video_width)+'''</Width>
-                        <Height>'''+str(video_height)+'''</Height>
-                    </VideoProducer>
-                </AgentHandlers>
-              </AgentSection>
-            </Mission>'''
 
+
+
+
+
+##############################################################################################################
+########################################## RUNNING MISSION ###################################################
+##############################################################################################################
 
 agent_host = MalmoPython.AgentHost()
 agent_host.setVideoPolicy(MalmoPython.VideoPolicy.KEEP_ALL_FRAMES)
@@ -335,8 +367,6 @@ while world_state.is_mission_running :
 
         ### the important informations are contained in the dictionnary ObsEnv
         # print(ObsEnv.keys())
-        
-        # print("")
         # VisualizeFrontVison(ObsEnv["FrontEnv"])
 
         ant_view = getAntView(video_height,video_width,world_state.video_frames[0].pixels)
@@ -344,15 +374,6 @@ while world_state.is_mission_running :
         for value in ant_view:
             f.write(str(value)+" ")
         f.close()
-
-        # pix_id = 1
-        # dico_id = {1: "R: ", 2: "G: ", 3: "B: ", 4: "depth: "}
-        # for pix in world_state.video_frames[0].pixels[479980:480020]:
-        #     print(dico_id[pix_id], pix)
-        #     if pix_id < 4 :
-        #         pix_id += 1
-        #     else :
-        #         pix_id = 1
         
         com=input("commande : ")
         if com=="z":
