@@ -14,14 +14,6 @@ from skimage.transform import resize
 import numpy as np
 from PIL import Image
 
-import torch
-from bindsnet.network import Network
-from bindsnet.network.nodes import LIFNodes, Input
-from bindsnet.network.topology import Connection
-from bindsnet.network.monitors import Monitor
-import matplotlib.pyplot as plt 
-from bindsnet.analysis.plotting import plot_input, plot_spikes, plot_voltages, plot_assignments
-
 if sys.version_info[0] == 2:
     sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)  # flush print output immediately
 else:
@@ -123,6 +115,10 @@ missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
                         <Grid name="FrontEnv21x21">
                             <min x="-10" y="0" z="-10"/>
                             <max x="10" y="0" z="10"/>
+                        </Grid>
+                        <Grid name="PheromonesTrace">
+                            <min x="-1" y="-1" z="-1"/>
+                            <max x="1" y="-1" z="1"/>
                         </Grid>
                     </ObservationFromGrid>
                     <ContinuousMovementCommands turnSpeedDegs="180"/>
@@ -335,45 +331,16 @@ def GetObjects(grid,side) :
 def randomNavigator(movements):
     return random.choice(movements)
 
+def addPheromones(ObsEnv,agent):
+    xVar1 = random.randint(0,2) 
+    xVar2 = random.randint(0,2)+1
+    zVar1 = random.randint(0,2)
+    zVar2 = random.randint(0,2)+1
+    pheromonesCoord = [[x,z] for x in range(round(ObsEnv["xPos"])-xVar1, round(ObsEnv["xPos"])+xVar2) for z in range(round(ObsEnv["zPos"])-zVar1, round(ObsEnv["zPos"])+zVar2)]
+    for [x,z] in pheromonesCoord:
+        agent.sendCommand('chat /setblock ' + str(x) + ' ' + str(ArenaFloor-2) + ' ' + str(z) + ' gold_block')
 
-
-
-
-
-
-
-##################################################################################################################
-########################################## NEURAL NETWORK ########################################################
-##################################################################################################################
-
-def reactionToRandomNavigation(ant_view):
-    reaction_network = Network()
-
-    input_data = {"Input": torch.from_numpy(ant_view)}
-
-    input_layer = Input(n=360, shape=(10,36))
-    LIF_layer = LIFNodes(n=360, shape=(10,36))
-    reaction_network.add_layer(layer=input_layer, name="Input")
-    reaction_network.add_layer(layer=LIF_layer, name="LIF")
-    
-    reaction_network.add_connection(connection=Connection(source=input_layer, target=LIF_layer),source="Input", target="LIF")
-    reaction_network.add_monitor(monitor=Monitor(obj=input_layer, state_vars=("s")), name="Input monitor")
-    reaction_network.add_monitor(monitor=Monitor(obj=LIF_layer, state_vars=("s","v")), name="LIF monitor")
-
-    reaction_network.run(inputs=input_data, time=ant_view.shape[0])
-
-    spikes = {"Input": reaction_network.monitors["Input monitor"].get("s"), "LIF": reaction_network.monitors["LIF monitor"].get("s")}
-    voltage = {"LIF": reaction_network.monitors["LIF monitor"].get("v")}
-    plt.ioff()
-    plot_spikes(spikes)
-    plt.savefig("./fig_network_random_nav/spikes_sim_%d.png" % ant_view.shape[0])
-    plot_voltages(voltage, plot_type="line")
-    plt.savefig("./fig_network_random_nav/voltage_sim_%d.png" % ant_view.shape[0])
-    plt.show()
-
-
-
-
+def followPheromonesPath(ObsEnv,agent):
 
 
 
@@ -431,17 +398,16 @@ while not world_state.has_mission_begun:
 print()
 print("Mission running ", end=' ')
 
-ant_view = np.array([np.zeros(360)])
-nb_world_ticks = 0
+nb_world_ticks = 1
 
 # Loop until mission ends:
-while world_state.is_mission_running and nb_world_ticks < 500:
+while world_state.is_mission_running :
     print(".", end="")
-    time.sleep(0.05)
+    time.sleep(0.1)
     world_state = agent_host.getWorldState()
     for error in world_state.errors:
         print("Error:",error.text)
-
+    
     # Observations
     if world_state.number_of_observations_since_last_state > 0 :
         msg = world_state.observations[-1].text 
@@ -457,13 +423,24 @@ while world_state.is_mission_running and nb_world_ticks < 500:
         # VisualizeFrontVison(ObsEnv["FrontEnv"])
 
         ### get ant's vision
-        view_tmp = np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels).flatten()])
-        ant_view = np.append(ant_view,view_tmp,axis=0)
-        ### launch neural network
-        # reactionToRandomNavigation(ant_view)
+        # ant_view = getAntView(video_height,video_width,world_state.video_frames[0].pixels)
+        # visualizeAntVision(ant_view,nb_world_ticks)
 
         movements = ["z","q","d"]
-        com=randomNavigator(movements)
+        if nb_world_ticks <= timeRandomNav:
+            addPheromones(ObsEnv,agent_host) 
+            com=randomNavigator(movements)
+            # move for 1 world tick
+            agent_host.sendCommand("move 1")
+        elif nb_world_ticks == timeRandomNav+1:
+            print("Follow the pheromones path")
+            # faces the other way
+            agent_host.sendCommand("turn -1")
+            time.sleep(1)
+            agent_host.sendCommand("turn 0")
+        else : 
+            com = followPheromonesPath(ObsEnv, agent_host)
+
         # turn or continue straight on
         if com=="z":
             agent_host.sendCommand("move 1")
@@ -476,13 +453,8 @@ while world_state.is_mission_running and nb_world_ticks < 500:
             agent_host.sendCommand("turn 1")
             time.sleep(0.25)
             agent_host.sendCommand("turn 0")
-        # move for 1 world tick
-        agent_host.sendCommand("move 1")
-
-    nb_world_ticks += 1
-
-print("Simulation over")
-reactionToRandomNavigation(ant_view)
+        
+        nb_world_ticks += 1
 
 print()
 print("Mission ended")
