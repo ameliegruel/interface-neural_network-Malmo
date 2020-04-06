@@ -36,7 +36,7 @@ zPos = 0
 video_height = 600
 video_width = 800
 
-timeRandomNav = 1000
+timeRandomNav = 500
 
 # Create random objects in the arena
 
@@ -328,20 +328,70 @@ def GetObjects(grid,side) :
 ########################################## NAVIGATION ########################################################
 ##############################################################################################################
 
-def randomNavigator(movements):
+def randomNavigator(movements, last_command):
+    movements.remove(last_command)
     return random.choice(movements)
 
-def addPheromones(ObsEnv,agent):
-    xVar1 = random.randint(0,2) 
-    xVar2 = random.randint(0,2)+1
-    zVar1 = random.randint(0,2)
-    zVar2 = random.randint(0,2)+1
-    pheromonesCoord = [[x,z] for x in range(round(ObsEnv["xPos"])-xVar1, round(ObsEnv["xPos"])+xVar2) for z in range(round(ObsEnv["zPos"])-zVar1, round(ObsEnv["zPos"])+zVar2)]
+def addPheromones(ObsEnv,agent,turn=False):
+    if turn==False:
+        xVar1 = random.randint(0,1) 
+        xVar2 = random.randint(0,2)+1
+        zVar1 = random.randint(0,1)
+        zVar2 = random.randint(0,2)+1
+        pheromonesCoord = [[x,z] for x in range(round(ObsEnv["xPos"])-xVar1, round(ObsEnv["xPos"])+xVar2) for z in range(round(ObsEnv["zPos"])-zVar1, round(ObsEnv["zPos"])+zVar2)]
+    elif turn==True:
+        pheromonesCoord = [[x,z] for x in range(round(ObsEnv["xPos"])-1, round(ObsEnv["xPos"])+2) for z in range(round(ObsEnv["zPos"])-1, round(ObsEnv["zPos"])+2)]
     for [x,z] in pheromonesCoord:
-        agent.sendCommand('chat /setblock ' + str(x) + ' ' + str(ArenaFloor-2) + ' ' + str(z) + ' gold_block')
+        agent.sendCommand('chat /setblock ' + str(x) + ' ' + str(ArenaFloor-1) + ' ' + str(z) + ' gold_block')
+
+def getWhatIsInFront(agentYaw):
+    whatIsInFront = {
+        # range(-180, -157): [0,1,2], # 1/2 of north square => centered on index=1 of PheromonesTrace grid
+        # range(-157, -112): [3,0,1], # north-west square => centered on index=0 of PheromonesTrace grid
+        # range(-112, -67): [6,3,0], # west block => centered on index=3 of PheromonesTrace grid
+        # range(-67, -22): [7,6,3], # south-west square => centered on index=6 of PheromonesTrace grid        
+        # range(-22, 22): [8,7,6], # south square => centered on index=7 of PheromonesTrace grid
+        # range(22, 67): [5,8,7], # south-est square => centered on index=8 of PheromonesTrace grid
+        # range(67, 112): [2,5,8], # est square => centered on index=5 of PheromonesTrace grid
+        # range(112, 157): [1,2,5], # north-est square => centered on index=2 of PheromonesTrace grid
+        # range(157, 181): [0,1,2] # 1/2 of north square => centered on index=1 of PheromonesTrace grid
+        range(-180, -157): [3,0,1,2,5], # 1/2 of north square => centered on index=1 of PheromonesTrace grid
+        range(-157, -112): [6,3,0,1,2], # north-west square => centered on index=0 of PheromonesTrace grid
+        range(-112, -67): [7,6,3,0,1], # west block => centered on index=3 of PheromonesTrace grid
+        range(-67, -22): [8,7,6,3,0], # south-west square => centered on index=6 of PheromonesTrace grid        
+        range(-22, 22): [5,8,7,6,3], # south square => centered on index=7 of PheromonesTrace grid
+        range(22, 67): [2,5,8,7,6], # south-est square => centered on index=8 of PheromonesTrace grid
+        range(67, 112): [1,2,5,8,7], # est square => centered on index=5 of PheromonesTrace grid
+        range(112, 157): [0,1,2,5,8], # north-est square => centered on index=2 of PheromonesTrace grid
+        range(157, 181): [3,0,1,2,5] # 1/2 of north square => centered on index=1 of PheromonesTrace grid
+    }
+    for yaw in whatIsInFront.keys():
+        if agentYaw in yaw:
+            print("YESSSSS", yaw, "=>", whatIsInFront[yaw])
+            return whatIsInFront[yaw]
 
 def followPheromonesPath(ObsEnv,agent):
-
+    print(ObsJSON["PheromonesTrace"], ObsEnv["yaw"])
+    BlocksInFront = getWhatIsInFront(round(ObsEnv["yaw"]))
+    print(BlocksInFront)
+    directions = {
+        # BlocksInFront[0]: "q",
+        # BlocksInFront[1]: "z",
+        # BlocksInFront[2]: "d"
+        BlocksInFront[0]: "q",
+        BlocksInFront[1]: "q",
+        BlocksInFront[2]: "z",
+        BlocksInFront[3]: "d",
+        BlocksInFront[4]: "d"
+    }
+    BlocksWithGold = list(filter(lambda x: ObsEnv["PheromonesTrace"][x] == 'gold_block', BlocksInFront))
+    print(BlocksWithGold)
+    if BlocksWithGold == [] :
+        return random.choice(["q","d"])
+    elif BlocksInFront[2] in BlocksWithGold:
+        return directions[BlocksInFront[2]]
+    else:
+        return directions[random.choice(BlocksWithGold)]
 
 
 
@@ -399,6 +449,7 @@ print()
 print("Mission running ", end=' ')
 
 nb_world_ticks = 1
+last_com = "z"
 
 # Loop until mission ends:
 while world_state.is_mission_running :
@@ -413,28 +464,26 @@ while world_state.is_mission_running :
         msg = world_state.observations[-1].text 
         ObsJSON = json.loads(msg)
         ObsEnv = {"xPos": ObsJSON["XPos"], "yPos": ObsJSON["YPos"], "zPos": ObsJSON["ZPos"], "yaw": getYaw(-ObsJSON["Yaw"])}
-        ObsEnv["FrontEnv"] = GetFrontVision(ObsJSON["FrontEnv21x21"],21,ObsEnv["yaw"])
-        ObsEnv["objects"] = GetObjects(ObsEnv['FrontEnv'],21)
-        
-        # VisualizeFrontVison(ObsEnv["FrontEnv"])  # => to visualize the frontal vision as seen by the agent
-
-        ### the important informations are contained in the dictionnary ObsEnv
-        # print(ObsEnv.keys())
-        # VisualizeFrontVison(ObsEnv["FrontEnv"])
+        # ObsEnv["FrontEnv"] = GetFrontVision(ObsJSON["FrontEnv21x21"],21,ObsEnv["yaw"])
+        # ObsEnv["objects"] = GetObjects(ObsEnv['FrontEnv'],21)
+        ObsEnv["PheromonesTrace"] = ObsJSON["PheromonesTrace"]
 
         ### get ant's vision
         # ant_view = getAntView(video_height,video_width,world_state.video_frames[0].pixels)
         # visualizeAntVision(ant_view,nb_world_ticks)
 
+
         movements = ["z","q","d"]
         if nb_world_ticks <= timeRandomNav:
             addPheromones(ObsEnv,agent_host) 
-            com=randomNavigator(movements)
+            com=randomNavigator(movements,last_com)
             # move for 1 world tick
             agent_host.sendCommand("move 1")
         elif nb_world_ticks == timeRandomNav+1:
+            addPheromones(ObsEnv,agent_host,turn=True)
             print("Follow the pheromones path")
             # faces the other way
+            agent_host.sendCommand("move 0")
             agent_host.sendCommand("turn -1")
             time.sleep(1)
             agent_host.sendCommand("turn 0")
@@ -455,6 +504,7 @@ while world_state.is_mission_running :
             agent_host.sendCommand("turn 0")
         
         nb_world_ticks += 1
+        last_com = com
 
 print()
 print("Mission ended")

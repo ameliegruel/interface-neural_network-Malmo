@@ -20,7 +20,7 @@ from bindsnet.network.nodes import LIFNodes, Input
 from bindsnet.network.topology import Connection
 from bindsnet.network.monitors import Monitor
 import matplotlib.pyplot as plt 
-from bindsnet.analysis.plotting import plot_input, plot_spikes, plot_voltages, plot_assignments
+from bindsnet.analysis.plotting import plot_input, plot_spikes, plot_voltages
 
 if sys.version_info[0] == 2:
     sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)  # flush print output immediately
@@ -349,22 +349,28 @@ def randomNavigator(movements):
 def reactionToRandomNavigation(ant_view):
     reaction_network = Network()
 
-    input_data = {"Input": torch.from_numpy(ant_view)}
+    input_data = {"Input": (torch.from_numpy(ant_view))}
 
-    input_layer = Input(n=360, shape=(10,36))
-    LIF_layer = LIFNodes(n=360, shape=(10,36))
+    input_layer = Input(n=360,shape=(10,36),traces=True)
+    LIF_layer = LIFNodes(n=360,shape=(10,36),traces=True)
     reaction_network.add_layer(layer=input_layer, name="Input")
     reaction_network.add_layer(layer=LIF_layer, name="LIF")
     
-    reaction_network.add_connection(connection=Connection(source=input_layer, target=LIF_layer),source="Input", target="LIF")
-    reaction_network.add_monitor(monitor=Monitor(obj=input_layer, state_vars=("s")), name="Input monitor")
-    reaction_network.add_monitor(monitor=Monitor(obj=LIF_layer, state_vars=("s","v")), name="LIF monitor")
+    conn_Input_LIF=Connection(source=input_layer, target=LIF_layer)
+    reaction_network.add_connection(connection=conn_Input_LIF,source="Input", target="LIF")
+    
+    input_monitor=Monitor(obj=input_layer, state_vars=("s"),time=ant_view.shape[0])
+    LIF_monitor=Monitor(obj=LIF_layer,state_vars=("s","v"),time=ant_view.shape[0])
+    reaction_network.add_monitor(monitor=input_monitor, name="Input monitor")
+    reaction_network.add_monitor(monitor=LIF_monitor, name="LIF monitor")
 
     reaction_network.run(inputs=input_data, time=ant_view.shape[0])
 
-    spikes = {"Input": reaction_network.monitors["Input monitor"].get("s"), "LIF": reaction_network.monitors["LIF monitor"].get("s")}
-    voltage = {"LIF": reaction_network.monitors["LIF monitor"].get("v")}
+    spikes = {"Input": input_monitor.get("s"), "LIF": LIF_monitor.get("s")}
+    print(spikes)
+    voltage = {"LIF": LIF_monitor.get("v")}
     plt.ioff()
+    plot_input(input_data['Input'][-1][0],input_data['Input'][-1][0])
     plot_spikes(spikes)
     plt.savefig("./fig_network_random_nav/spikes_sim_%d.png" % ant_view.shape[0])
     plot_voltages(voltage, plot_type="line")
@@ -431,11 +437,14 @@ while not world_state.has_mission_begun:
 print()
 print("Mission running ", end=' ')
 
-ant_view = np.array([np.zeros(360)])
+# intialize ant_view
+ant_view = np.array([[[np.zeros(360)]]])
+ant_view.shape = (1,1,10,36)
+
 nb_world_ticks = 0
 
 # Loop until mission ends:
-while world_state.is_mission_running and nb_world_ticks < 500:
+while world_state.is_mission_running and nb_world_ticks < 200:
     print(".", end="")
     time.sleep(0.05)
     world_state = agent_host.getWorldState()
@@ -447,8 +456,8 @@ while world_state.is_mission_running and nb_world_ticks < 500:
         msg = world_state.observations[-1].text 
         ObsJSON = json.loads(msg)
         ObsEnv = {"xPos": ObsJSON["XPos"], "yPos": ObsJSON["YPos"], "zPos": ObsJSON["ZPos"], "yaw": getYaw(-ObsJSON["Yaw"])}
-        ObsEnv["FrontEnv"] = GetFrontVision(ObsJSON["FrontEnv21x21"],21,ObsEnv["yaw"])
-        ObsEnv["objects"] = GetObjects(ObsEnv['FrontEnv'],21)
+        # ObsEnv["FrontEnv"] = GetFrontVision(ObsJSON["FrontEnv21x21"],21,ObsEnv["yaw"])
+        # ObsEnv["objects"] = GetObjects(ObsEnv['FrontEnv'],21)
         
         # VisualizeFrontVison(ObsEnv["FrontEnv"])  # => to visualize the frontal vision as seen by the agent
 
@@ -457,8 +466,7 @@ while world_state.is_mission_running and nb_world_ticks < 500:
         # VisualizeFrontVison(ObsEnv["FrontEnv"])
 
         ### get ant's vision
-        view_tmp = np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels).flatten()])
-        ant_view = np.append(ant_view,view_tmp,axis=0)
+        ant_view = np.append(ant_view,np.array([[getAntView(video_height,video_width,world_state.video_frames[0].pixels)]]),axis=0)
         ### launch neural network
         # reactionToRandomNavigation(ant_view)
 
