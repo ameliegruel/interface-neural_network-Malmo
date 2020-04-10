@@ -44,7 +44,7 @@ zPos = 0
 video_height = 600
 video_width = 800
 
-timeRandomNav = 1000
+timeRandomNav = 200
 
 # Create random objects in the arena
 
@@ -349,7 +349,10 @@ def randomNavigator(movements):
 def reactionToRandomNavigation(ant_view):
     reaction_network = Network()
 
-    input_data = {"Input": (torch.from_numpy(ant_view))}
+    input_data = {"Input": torch.from_numpy(ant_view)}
+
+    for i in input_data["Input"]:
+        print(i)
 
     input_layer = Input(n=360,shape=(10,36),traces=True)
     LIF_layer = LIFNodes(n=360,shape=(10,36),traces=True)
@@ -367,10 +370,9 @@ def reactionToRandomNavigation(ant_view):
     reaction_network.run(inputs=input_data, time=ant_view.shape[0])
 
     spikes = {"Input": input_monitor.get("s"), "LIF": LIF_monitor.get("s")}
-    print(spikes)
     voltage = {"LIF": LIF_monitor.get("v")}
     plt.ioff()
-    plot_input(input_data['Input'][-1][0],input_data['Input'][-1][0])
+    plot_input(input_data['Input'][-1][0],spikes['Input'][-1][0])
     plot_spikes(spikes)
     plt.savefig("./fig_network_random_nav/spikes_sim_%d.png" % ant_view.shape[0])
     plot_voltages(voltage, plot_type="line")
@@ -444,7 +446,7 @@ ant_view.shape = (1,1,10,36)
 nb_world_ticks = 0
 
 # Loop until mission ends:
-while world_state.is_mission_running and nb_world_ticks < 200:
+while world_state.is_mission_running and nb_world_ticks < timeRandomNav:
     print(".", end="")
     time.sleep(0.05)
     world_state = agent_host.getWorldState()
@@ -466,7 +468,7 @@ while world_state.is_mission_running and nb_world_ticks < 200:
         # VisualizeFrontVison(ObsEnv["FrontEnv"])
 
         ### get ant's vision
-        ant_view = np.append(ant_view,np.array([[getAntView(video_height,video_width,world_state.video_frames[0].pixels)]]),axis=0)
+        ant_view = np.append(ant_view,0.01*np.array([[getAntView(video_height,video_width,world_state.video_frames[0].pixels)]]),axis=0)
         ### launch neural network
         # reactionToRandomNavigation(ant_view)
 
