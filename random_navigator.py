@@ -44,7 +44,7 @@ zPos = 0
 video_height = 600
 video_width = 800
 
-timeRandomNav = 200
+timeRandomNav = 501
 
 # Create random objects in the arena
 
@@ -282,7 +282,7 @@ def getAntView(h,w,pixels):
 
     # normalize the image (see Ardin et al)
     sum_pixels = sqrt(np.sum(ant_view.flatten()))
-    ant_view = np.array(list(map(lambda x: x/sum_pixels, ant_view))) # valeurs entières ? ou pas ? 
+    ant_view = np.array(list(map(lambda x: x/sum_pixels, ant_view))).flatten() # valeurs entières ? ou pas ? 
     
     return ant_view
 
@@ -350,12 +350,13 @@ def reactionToRandomNavigation(ant_view):
     reaction_network = Network()
 
     input_data = {"Input": torch.from_numpy(ant_view)}
+    print(input_data["Input"].shape)
 
     for i in input_data["Input"]:
         print(i)
 
-    input_layer = Input(n=360,shape=(10,36),traces=True)
-    LIF_layer = LIFNodes(n=360,shape=(10,36),traces=True)
+    input_layer = Input(n=360, traces=True)
+    LIF_layer = LIFNodes(n=360, traces=True)
     reaction_network.add_layer(layer=input_layer, name="Input")
     reaction_network.add_layer(layer=LIF_layer, name="LIF")
     
@@ -372,7 +373,7 @@ def reactionToRandomNavigation(ant_view):
     spikes = {"Input": input_monitor.get("s"), "LIF": LIF_monitor.get("s")}
     voltage = {"LIF": LIF_monitor.get("v")}
     plt.ioff()
-    plot_input(input_data['Input'][-1][0],spikes['Input'][-1][0])
+    # plot_input(input_data['Input'][-1],spikes['Input'][-1])
     plot_spikes(spikes)
     plt.savefig("./fig_network_random_nav/spikes_sim_%d.png" % ant_view.shape[0])
     plot_voltages(voltage, plot_type="line")
@@ -440,8 +441,7 @@ print()
 print("Mission running ", end=' ')
 
 # intialize ant_view
-ant_view = np.array([[[np.zeros(360)]]])
-ant_view.shape = (1,1,10,36)
+ant_view = np.array([np.zeros(360)])
 
 nb_world_ticks = 0
 
@@ -467,8 +467,8 @@ while world_state.is_mission_running and nb_world_ticks < timeRandomNav:
         # print(ObsEnv.keys())
         # VisualizeFrontVison(ObsEnv["FrontEnv"])
 
-        ### get ant's vision
-        ant_view = np.append(ant_view,0.01*np.array([[getAntView(video_height,video_width,world_state.video_frames[0].pixels)]]),axis=0)
+        ### get ant's visions
+        ant_view = np.append(ant_view,0.1*np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels)]),axis=0)
         ### launch neural network
         # reactionToRandomNavigation(ant_view)
 
