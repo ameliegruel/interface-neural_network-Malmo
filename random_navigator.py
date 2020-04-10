@@ -332,7 +332,8 @@ def GetObjects(grid,side) :
 ########################################## NAVIGATION ########################################################
 ##############################################################################################################
 
-def randomNavigator(movements):
+def randomNavigator(movements, last_command):
+    movements.remove(last_command)
     return random.choice(movements)
 
 
@@ -445,6 +446,7 @@ ant_view = np.array([[[[np.zeros(360)]]]])
 ant_view.shape = (1,1,10,36)
 
 nb_world_ticks = 0
+last_com = "z"
 
 # Loop until mission ends:
 while world_state.is_mission_running and nb_world_ticks < timeRandomNav:
@@ -474,7 +476,7 @@ while world_state.is_mission_running and nb_world_ticks < timeRandomNav:
         # reactionToRandomNavigation(ant_view)
 
         movements = ["z","q","d"]
-        com=randomNavigator(movements)
+        com=randomNavigator(movements, last_com)
         # turn or continue straight on
         if com=="z":
             agent_host.sendCommand("move 1")
@@ -489,6 +491,7 @@ while world_state.is_mission_running and nb_world_ticks < timeRandomNav:
             agent_host.sendCommand("turn 0")
         # move for 1 world tick
         agent_host.sendCommand("move 1")
+        last_com = com
 
     nb_world_ticks += 1
 
