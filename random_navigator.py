@@ -347,12 +347,12 @@ def randomNavigator(movements, last_command):
 ########################################## NEURAL NETWORK ########################################################
 ##################################################################################################################
 
-def reactionToRandomNavigation(ant_view):
+def reactionToRandomNavigation(ant_view, nb, plots):
     reaction_network = Network()
 
-    input_data = {"Input": torch.from_numpy(ant_view)}
-    print(input_data["Input"].shape)
-
+    sim_time = 5 # milliseconds
+    input_data = {"Input": torch.from_numpy(np.array([ant_view for i in range(sim_time)]))}
+    # print(input_data["Input"].shape)
     # for i in input_data["Input"]:
     #     print(i)
 
@@ -364,22 +364,36 @@ def reactionToRandomNavigation(ant_view):
     conn_Input_LIF=Connection(source=input_layer, target=LIF_layer)
     reaction_network.add_connection(connection=conn_Input_LIF,source="Input", target="LIF")
     
-    input_monitor=Monitor(obj=input_layer, state_vars=("s"),time=ant_view.shape[0])
-    LIF_monitor=Monitor(obj=LIF_layer,state_vars=("s","v"),time=ant_view.shape[0])
+    input_monitor=Monitor(obj=input_layer, state_vars=("s"),time=sim_time)
+    LIF_monitor=Monitor(obj=LIF_layer,state_vars=("s","v"),time=sim_time)
     reaction_network.add_monitor(monitor=input_monitor, name="Input monitor")
     reaction_network.add_monitor(monitor=LIF_monitor, name="LIF monitor")
 
-    reaction_network.run(inputs=input_data, time=ant_view.shape[0])
+    reaction_network.run(inputs=input_data, time=sim_time)
 
     spikes = {"Input": input_monitor.get("s"), "LIF": LIF_monitor.get("s")}
     voltage = {"LIF": LIF_monitor.get("v")}
+    
     plt.ioff()
+    if len(plots.keys()) == 0:
+        im_spikes, axes_spikes = plot_spikes(spikes)
+        im_voltage, axes_voltage = plot_voltages(voltage, plot_type="line")
+    else : 
+        im_spikes, axes_spikes = plot_spikes(spikes, ims=plots["Spikes_ims"], axes=plots["Spikes_axes"])
+        im_voltage, axes_voltage = plot_voltages(voltage, plot_type="line", ims=plots["Voltage_ims"], axes=plots["Voltage_axes"])
+    plots["Spikes_ims"] = im_spikes
+    plots["Spikes_axes"] = axes_spikes
+    plots["Voltage_ims"] = im_voltage
+    plots["Voltage_axes"] = axes_voltage
+
+
     # plot_input(input_data['Input'][-1],spikes['Input'][-1])
-    plot_spikes(spikes)
-    # plt.savefig("./fig_network_random_nav/spikes_sim_%d.png" % ant_view.shape[0])
-    plot_voltages(voltage, plot_type="line")
-    # plt.savefig("./fig_network_random_nav/voltage_sim_%d.png" % ant_view.shape[0])
-    plt.show()
+    # plt.savefig("./fig_network_random_nav/test/voltage_sim_%d.png" % nb)
+    # plt.savefig("./fig_network_random_nav/test/spikes_sim_%d.png" % nb)
+    plt.show(block=False)
+    plt.pause(0.01)
+
+    return plots
 
 
 
@@ -442,10 +456,11 @@ print()
 print("Mission running ", end=' ')
 
 # intialize ant_view
-ant_view = np.array([[[[np.zeros(360)]]]])
-ant_view.shape = (1,1,10,36)
+# ant_view = np.array([[[[np.zeros(360)]]]])
+# ant_view.shape = (1,1,10,36)
 
 nb_world_ticks = 0
+plots = {}
 last_com = "z"
 
 # Loop until mission ends:
@@ -471,9 +486,10 @@ while world_state.is_mission_running and nb_world_ticks < timeRandomNav:
         # VisualizeFrontVison(ObsEnv["FrontEnv"])
 
         ### get ant's visions
-        ant_view = np.append(ant_view,0.1*np.array([[getAntView(video_height,video_width,world_state.video_frames[0].pixels)]]),axis=0)
+        ant_view = 0.1*np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
+        # ant_view = np.append(ant_view,0.1*np.array([[getAntView(video_height,video_width,world_state.video_frames[0].pixels)]]),axis=0)
         ### launch neural network
-        # reactionToRandomNavigation(ant_view)
+        plots = reactionToRandomNavigation(ant_view, nb_world_ticks, plots)
 
         movements = ["z","q","d"]
         com=randomNavigator(movements, last_com)
@@ -496,7 +512,7 @@ while world_state.is_mission_running and nb_world_ticks < timeRandomNav:
     nb_world_ticks += 1
 
 print("Simulation over")
-reactionToRandomNavigation(ant_view)
+# reactionToRandomNavigation(ant_view)
 
 print()
 print("Mission ended")
