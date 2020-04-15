@@ -350,7 +350,7 @@ def randomNavigator(movements, last_command):
 def reactionToRandomNavigation(ant_view, nb, plots):
     reaction_network = Network()
 
-    sim_time = 5 # milliseconds
+    sim_time = 50 # milliseconds
     input_data = {"Input": torch.from_numpy(np.array([ant_view for i in range(sim_time)]))}
     # print(input_data["Input"].shape)
     # for i in input_data["Input"]:
