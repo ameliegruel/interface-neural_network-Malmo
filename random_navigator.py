@@ -348,13 +348,11 @@ def randomNavigator(movements, last_command):
 ##################################################################################################################
 
 def reactionToRandomNavigation(ant_view, nb, plots):
-    reaction_network = Network()
+    dt = 0.1
+    reaction_network = Network(dt=dt)
 
     sim_time = 50 # milliseconds
-    input_data = {"Input": torch.from_numpy(np.array([ant_view for i in range(sim_time)]))}
-    # print(input_data["Input"].shape)
-    # for i in input_data["Input"]:
-    #     print(i)
+    input_data = {"Input": torch.from_numpy(np.array([ant_view for i in range(int(sim_time/dt))]))}
 
     input_layer = Input(n=360, shape=(10,36), traces=True)
     LIF_layer = LIFNodes(n=360, traces=True)
@@ -486,7 +484,7 @@ while world_state.is_mission_running and nb_world_ticks < timeRandomNav:
         # VisualizeFrontVison(ObsEnv["FrontEnv"])
 
         ### get ant's visions
-        ant_view = 0.1*np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
+        ant_view = 0.01*np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
         # ant_view = np.append(ant_view,0.1*np.array([[getAntView(video_height,video_width,world_state.video_frames[0].pixels)]]),axis=0)
         ### launch neural network
         plots = reactionToRandomNavigation(ant_view, nb_world_ticks, plots)
