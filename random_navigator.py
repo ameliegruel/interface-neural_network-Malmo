@@ -44,8 +44,6 @@ zPos = 0
 video_height = 600
 video_width = 800
 
-timeRandomNav = 500
-
 # Create random objects in the arena
 
 def GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor):
@@ -462,7 +460,7 @@ plots = {}
 last_com = "z"
 
 # Loop until mission ends:
-while world_state.is_mission_running and nb_world_ticks < timeRandomNav:
+while world_state.is_mission_running :
     print(".", end="")
     time.sleep(0.05)
     world_state = agent_host.getWorldState()
