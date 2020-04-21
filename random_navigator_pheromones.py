@@ -36,7 +36,7 @@ zPos = 0
 video_height = 600
 video_width = 800
 
-timeRandomNav = 500
+timeRandomNav = 500 # time during which agent is randomly walking around, leaving pheromones behind him (at the end of that, turn around and try to follow the pheromones) 
 
 # Create random objects in the arena
 
@@ -103,7 +103,7 @@ missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
               <AgentSection mode="Survival">
                 <Name>MalmoTutorialBot</Name>
                 <AgentStart>
-                    <Placement x="0" y="''' + str(ArenaFloor) + '''" z="0" yaw="0"/>
+                    <Placement x="'''+ str(xPos) +'''" y="''' + str(ArenaFloor) + '''" z="'''+ str(zPos) + '''" yaw="0"/>
                     <Inventory>
                         <InventoryItem slot="8" type="diamond_pickaxe"/>
                     </Inventory>
@@ -121,6 +121,9 @@ missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
                             <max x="1" y="-1" z="1"/>
                         </Grid>
                     </ObservationFromGrid>
+                    <AgentQuitFromTouchingBlockType>
+                        <Block type="diamond_block"/>
+                    </AgentQuitFromTouchingBlockType>
                     <ContinuousMovementCommands turnSpeedDegs="180"/>
                     <InventoryCommands/>
                     <VideoProducer want_depth="true">
@@ -334,9 +337,9 @@ def randomNavigator(movements, last_command):
 
 def addPheromones(ObsEnv,agent,turn=False):
     if turn==False:
-        xVar1 = random.randint(0,1) 
+        xVar1 = random.randint(0,2) 
         xVar2 = random.randint(0,2)+1
-        zVar1 = random.randint(0,1)
+        zVar1 = random.randint(0,2)
         zVar2 = random.randint(0,2)+1
         pheromonesCoord = [[x,z] for x in range(round(ObsEnv["xPos"])-xVar1, round(ObsEnv["xPos"])+xVar2) for z in range(round(ObsEnv["zPos"])-zVar1, round(ObsEnv["zPos"])+zVar2)]
     elif turn==True:
@@ -482,6 +485,9 @@ while world_state.is_mission_running :
         elif nb_world_ticks == timeRandomNav+1:
             addPheromones(ObsEnv,agent_host,turn=True)
             print("Follow the pheromones path")
+            # add a column inside the arena at (x,y,z) original of the agent : when it reaches the colum, it has reached its point of departure and the mission is ended
+            for height in range(ArenaFloor, ArenaFloor+4):
+                agent_host.sendCommand('chat /setblock ' + str(xPos) + ' ' + str(height) + ' ' + str(zPos) + ' diamond_block')
             # faces the other way
             agent_host.sendCommand("move 0")
             agent_host.sendCommand("turn -1")
