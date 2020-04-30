@@ -62,7 +62,7 @@ print("Initialize network")
 ### run network
 
 print("Run")
-input_data = {"PN": torch.from_numpy(modification * np.array([image for i in range(int(simulation_time/dt))]))}
+input_data = {"PN": torch.from_numpy(modification * np.array([list(map(lambda x: x+np.random.normal(0,0.5), image)) for i in range(int(simulation_time/dt))]))}
 landmark_guidance.run(inputs=input_data, time=simulation_time)
 
 spikes = {
