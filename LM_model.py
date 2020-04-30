@@ -16,7 +16,7 @@ if len(sys.argv) == 1:
     sys.exit()
 
 dt = 0.1
-simulation_time = 500 # milliseconds
+simulation_time = 50 # milliseconds
 if len(sys.argv) == 3:
     modification = float(sys.argv[2])
 else : 
@@ -38,21 +38,28 @@ print("Upload image data")
 
 landmark_guidance = Network(dt=dt)
 
-PN = Input(n=360, shape=(10,36), traces=True, w=torch.tensor(0.25))
+input_layer = Input(n=360)
+PN = LIFNodes(n=360, shape=(10,36), traces=True, w=torch.tensor(0.25))
 KC = LIFNodes(n=20000, traces=True, w=torch.tensor(2.0))
 EN = LIFNodes(n=1, traces=True)
+print(EN.named_children )
+landmark_guidance.add_layer(layer=input_layer, name="Input")
 landmark_guidance.add_layer(layer=PN, name="PN")
 landmark_guidance.add_layer(layer=KC, name="KC")
 landmark_guidance.add_layer(layer=EN, name="EN")
 
+input_PN = Connection(source=input_layer, target=PN)
 PN_KC = Connection(source=PN, target=KC)
 KC_EN = Connection(source=KC, target=EN)
+landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
 landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
 landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
 
-PN_monitor = Monitor(obj=PN, state_vars=("s"), time=simulation_time)
+input_monitor = Monitor(obj=input_layer, state_vars=("s"))
+PN_monitor = Monitor(obj=PN, state_vars=("s","v"), time=simulation_time)
 KC_monitor = Monitor(obj=KC, state_vars=("s","v"), time=simulation_time)
 EN_monitor = Monitor(obj=EN, state_vars=("s","v"), time=simulation_time)
+landmark_guidance.add_monitor(monitor=input_monitor, name="Input monitor")
 landmark_guidance.add_monitor(monitor=PN_monitor, name="PN monitor")
 landmark_guidance.add_monitor(monitor=KC_monitor, name="KC monitor")
 landmark_guidance.add_monitor(monitor=EN_monitor, name="EN monitor")
@@ -62,18 +69,22 @@ print("Initialize network")
 ### run network
 
 print("Run")
-input_data = {"PN": torch.from_numpy(modification * np.array([list(map(lambda x: x+np.random.normal(0,0.5), image)) for i in range(int(simulation_time/dt))]))}
+input_data = {"Input": torch.from_numpy(modification * np.array([list(map(lambda x: x+np.random.normal(0,0.5), image)) for i in range(int(simulation_time/dt))]))}
 landmark_guidance.run(inputs=input_data, time=simulation_time)
 
 spikes = {
+    "Input" : input_monitor.get("s"),
     "PN" : PN_monitor.get("s"),
     "KC" : KC_monitor.get("s"),
     "EN" : EN_monitor.get("s")
 }
 voltages = {
+    "PN" : PN_monitor.get("v"),
     "KC" : KC_monitor.get("v"),
     "EN" : EN_monitor.get("v")
 }
+
+# print(len(spikes["PN"]))
 
 plt.ioff()
 plot_spikes(spikes)
