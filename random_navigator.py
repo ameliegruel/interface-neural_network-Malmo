@@ -17,7 +17,7 @@ from PIL import Image
 import torch
 from bindsnet.network import Network
 from bindsnet.network.nodes import LIFNodes, Input
-from bindsnet.network.topology import Connection
+from bindsnet.network.topology import Connection, LocalConnection
 from bindsnet.network.monitors import Monitor
 import matplotlib.pyplot as plt 
 from bindsnet.analysis.plotting import plot_input, plot_spikes, plot_voltages
@@ -101,7 +101,7 @@ missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
                         <DrawCuboid type="air" x1="''' + str(old_div(-ArenaSide,2)) + '''" y1="''' + str(ArenaFloor) + '''" z1="''' + str(old_div(-ArenaSide,2)) + '''" x2="''' + str(old_div(ArenaSide,2)) + '''" y2="20" z2="''' + str(old_div(ArenaSide,2)) + '''"/>
                         ''' + GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor) + '''
                     </DrawingDecorator>
-                    <ServerQuitFromTimeUp timeLimitMs="3600000"/>
+                    <ServerQuitFromTimeUp timeLimitMs="100000"/>
                     <ServerQuitWhenAnyAgentFinishes/>
                 </ServerHandlers>
               </ServerSection>
@@ -272,8 +272,8 @@ def getAntView(h,w,pixels):
         id_RGBD += 1
         id_pixels +=1  
     # formula for B&W : Luminance = 0,2126 × Rouge + 0,7152 × Vert + 0,0722 × Bleu
-    
-    # resize in image of 10*39 pixels (see Ardin et al)
+
+    # resize in image of 10*36 pixels (see Ardin et al)
     ant_view = np.array(ant_view)
     ant_view.shape = (-1, w)
     ant_view = resize(ant_view, (10,36))
@@ -345,47 +345,77 @@ def randomNavigator(movements, last_command):
 ########################################## NEURAL NETWORK ########################################################
 ##################################################################################################################
 
-def reactionToRandomNavigation(ant_view, nb, plots):
-    dt = 0.1
-    reaction_network = Network(dt=dt)
+def initReactionNetwork():
+    dt=0.1
+    landmark_guidance = Network(dt=dt)
 
+    input_layer = Input(n=360, shape=(10,36))
+    PN = LIFNodes(n=360, w=torch.tensor(0.25))
+    KC = LIFNodes(n=20000, traces=True, w=torch.tensor(2.0))
+    EN = LIFNodes(n=1, traces=True)
+    landmark_guidance.add_layer(layer=input_layer, name="Input")
+    landmark_guidance.add_layer(layer=PN, name="PN")
+    landmark_guidance.add_layer(layer=KC, name="KC")
+    landmark_guidance.add_layer(layer=EN, name="EN")
+
+    input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
+    PN_KC = Connection(source=PN, target=KC)
+    KC_EN = Connection(source=KC, target=EN)
+    landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
+    landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
+    landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
+
+    input_monitor = Monitor(obj=input_layer, state_vars=("s"))
+    PN_monitor = Monitor(obj=PN, state_vars=("s","v"))
+    KC_monitor = Monitor(obj=KC, state_vars=("s","v"))
+    EN_monitor = Monitor(obj=EN, state_vars=("s","v"))
+    landmark_guidance.add_monitor(monitor=input_monitor, name="Input monitor")
+    landmark_guidance.add_monitor(monitor=PN_monitor, name="PN monitor")
+    landmark_guidance.add_monitor(monitor=KC_monitor, name="KC monitor")
+    landmark_guidance.add_monitor(monitor=EN_monitor, name="EN monitor")
+
+    return landmark_guidance
+
+def reactionToRandomNavigation(reaction_network, ant_view, plots):
+    dt = reaction_network.dt
     sim_time = 50 # milliseconds
+    
+    for monitor in reaction_network.monitors.keys() :
+        reaction_network.monitors[monitor].reset_state_variables()
+    
     input_data = {"Input": torch.from_numpy(np.array([ant_view for i in range(int(sim_time/dt))]))}
-
-    input_layer = Input(n=360, shape=(10,36), traces=True)
-    LIF_layer = LIFNodes(n=360, traces=True)
-    reaction_network.add_layer(layer=input_layer, name="Input")
-    reaction_network.add_layer(layer=LIF_layer, name="LIF")
-    
-    conn_Input_LIF=Connection(source=input_layer, target=LIF_layer)
-    reaction_network.add_connection(connection=conn_Input_LIF,source="Input", target="LIF")
-    
-    input_monitor=Monitor(obj=input_layer, state_vars=("s"),time=sim_time)
-    LIF_monitor=Monitor(obj=LIF_layer,state_vars=("s","v"),time=sim_time)
-    reaction_network.add_monitor(monitor=input_monitor, name="Input monitor")
-    reaction_network.add_monitor(monitor=LIF_monitor, name="LIF monitor")
-
     reaction_network.run(inputs=input_data, time=sim_time)
 
-    spikes = {"Input": input_monitor.get("s"), "LIF": LIF_monitor.get("s")}
-    voltage = {"LIF": LIF_monitor.get("v")}
-    
+    spikes = {
+        "Input" : reaction_network.monitors["Input monitor"].get("s"),
+        "PN" : reaction_network.monitors["PN monitor"].get("s"),
+        "KC" : reaction_network.monitors["KC monitor"].get("s"),
+        "EN" : reaction_network.monitors["EN monitor"].get("s")
+    }
+    voltages = {
+        "PN" : reaction_network.monitors["PN monitor"].get("v"),
+        "KC" : reaction_network.monitors["KC monitor"].get("v"),
+        "EN" : reaction_network.monitors["EN monitor"].get("v")
+    }
+
     plt.ioff()
     if len(plots.keys()) == 0:
         im_spikes, axes_spikes = plot_spikes(spikes)
-        im_voltage, axes_voltage = plot_voltages(voltage, plot_type="line")
+        # plt.savefig("./fig_network_random_nav/test/green_spikes_0.1dt_0.01.png")
+        im_voltage, axes_voltage = plot_voltages(voltages, plot_type="line")
+        # plt.savefig("./fig_network_random_nav/test/green_voltages_0.1dt_0.01.png")
     else : 
         im_spikes, axes_spikes = plot_spikes(spikes, ims=plots["Spikes_ims"], axes=plots["Spikes_axes"])
-        im_voltage, axes_voltage = plot_voltages(voltage, plot_type="line", ims=plots["Voltage_ims"], axes=plots["Voltage_axes"])
-    plots["Spikes_ims"] = im_spikes
-    plots["Spikes_axes"] = axes_spikes
-    plots["Voltage_ims"] = im_voltage
-    plots["Voltage_axes"] = axes_voltage
+        im_voltage, axes_voltage = plot_voltages(voltages, plot_type="line", ims=plots["Voltage_ims"], axes=plots["Voltage_axes"])
+        
+    for Ssubplot in axes_spikes:
+        Ssubplot.set_xlim(left=0,right=sim_time/dt)
+    for Vsubplot in axes_voltage:
+        Vsubplot.set_xlim(left=0,right=sim_time/dt)
+    
+    for (name, item) in [("Spikes_ims",im_spikes), ("Spikes_axes", axes_spikes), ("Voltage_ims", im_voltage), ("Voltage_axes", axes_voltage)]:
+        plots[name] = item
 
-
-    # plot_input(input_data['Input'][-1],spikes['Input'][-1])
-    # plt.savefig("./fig_network_random_nav/test/voltage_sim_%d.png" % nb)
-    # plt.savefig("./fig_network_random_nav/test/spikes_sim_%d.png" % nb)
     plt.show(block=False)
     plt.pause(0.01)
 
@@ -457,6 +487,7 @@ print("Mission running ", end=' ')
 
 nb_world_ticks = 0
 plots = {}
+reaction_network = initReactionNetwork()
 last_com = "z"
 
 # Loop until mission ends:
@@ -483,9 +514,8 @@ while world_state.is_mission_running :
 
         ### get ant's visions
         ant_view = 0.01*np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
-        # ant_view = np.append(ant_view,0.1*np.array([[getAntView(video_height,video_width,world_state.video_frames[0].pixels)]]),axis=0)
         ### launch neural network
-        plots = reactionToRandomNavigation(ant_view, nb_world_ticks, plots)
+        plots = reactionToRandomNavigation(reaction_network, ant_view, plots)
 
         movements = ["z","q","d"]
         com=randomNavigator(movements, last_com)
