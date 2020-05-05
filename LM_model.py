@@ -3,11 +3,11 @@ import sys
 import numpy as np
 from bindsnet.network import Network
 from bindsnet.network.nodes import Input, LIFNodes
-from bindsnet.network.topology import Connection, SparseConnection
+from bindsnet.network.topology import Connection, SparseConnection, LocalConnection
 from bindsnet.network.monitors import Monitor
 
-import matplotlib.pyplot as plt 
-from bindsnet.analysis.plotting import plot_spikes, plot_voltages
+import matplotlib.pyplot as plt
+from bindsnet.analysis.plotting import plot_spikes, plot_voltages, plot_input
 
 ### parameters
 
@@ -19,10 +19,12 @@ dt = 0.1
 simulation_time = 50 # milliseconds
 if len(sys.argv) == 3:
     modification = float(sys.argv[2])
-else : 
+else :
     modification = 1.0
 
 ### get image data
+
+print("Upload image data")
 
 file_image = open(sys.argv[1], "r")
 image = []
@@ -31,25 +33,25 @@ for l in file_image.readlines():
     image.append(l)
 file_image.close()
 image = np.array(image)
-image.shape = (1,10,36)
-print("Upload image data")
+image.shape = (10,36)
 
-### network initialization based on Ardin et al's article 
+### network initialization based on Ardin et al's article
+
+print("Initialize network")
 
 landmark_guidance = Network(dt=dt)
 
-input_layer = Input(n=360)
-PN = LIFNodes(n=360, shape=(10,36), traces=True, w=torch.tensor(0.25))
+input_layer = Input(n=360, shape=(10,36))
+PN = LIFNodes(n=360, w=torch.tensor(0.25))
 KC = LIFNodes(n=20000, traces=True, w=torch.tensor(2.0))
 EN = LIFNodes(n=1, traces=True)
-print(EN.named_children )
 landmark_guidance.add_layer(layer=input_layer, name="Input")
 landmark_guidance.add_layer(layer=PN, name="PN")
 landmark_guidance.add_layer(layer=KC, name="KC")
 landmark_guidance.add_layer(layer=EN, name="EN")
 
-input_PN = Connection(source=input_layer, target=PN)
-PN_KC = Connection(source=PN, target=KC)
+input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
+PN_KC = SparseConnection(source=PN, target=KC, sparsity=0.1)
 KC_EN = Connection(source=KC, target=EN)
 landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
 landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
@@ -64,7 +66,8 @@ landmark_guidance.add_monitor(monitor=PN_monitor, name="PN monitor")
 landmark_guidance.add_monitor(monitor=KC_monitor, name="KC monitor")
 landmark_guidance.add_monitor(monitor=EN_monitor, name="EN monitor")
 
-print("Initialize network")
+conn = landmark_guidance.connections[("PN","KC")]
+print(torch.mm(conn.w, conn.source.s.unsqueeze(-1).float()).squeeze(-1))
 
 ### run network
 
@@ -87,6 +90,15 @@ voltages = {
 # print(len(spikes["PN"]))
 
 plt.ioff()
-plot_spikes(spikes)
-plot_voltages(voltages, plot_type="line")
+Pspikes = plot_spikes(spikes)
+for subplot in Pspikes[1]:
+    subplot.set_xlim(left=0,right=simulation_time)
+Pspikes[1][2].set_ylim(bottom=0, top=KC.n)
+
+Vspikes = plot_voltages(voltages, plot_type="line")
+for v_subplot in Vspikes[1]:
+    v_subplot.set_xlim(left=0, right=simulation_time)
+
+plot_input(image=torch.from_numpy(image[0]), inpt=spikes["Input"][0][0])
+
 plt.show()
