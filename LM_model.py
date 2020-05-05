@@ -33,7 +33,7 @@ for l in file_image.readlines():
     image.append(l)
 file_image.close()
 image = np.array(image)
-image.shape = (10,36)
+image.shape = (1,10,36)
 
 ### network initialization based on Ardin et al's article
 
@@ -51,7 +51,7 @@ landmark_guidance.add_layer(layer=KC, name="KC")
 landmark_guidance.add_layer(layer=EN, name="EN")
 
 input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
-PN_KC = SparseConnection(source=PN, target=KC, sparsity=0.1)
+PN_KC = Connection(source=PN, target=KC)
 KC_EN = Connection(source=KC, target=EN)
 landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
 landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
@@ -66,8 +66,6 @@ landmark_guidance.add_monitor(monitor=PN_monitor, name="PN monitor")
 landmark_guidance.add_monitor(monitor=KC_monitor, name="KC monitor")
 landmark_guidance.add_monitor(monitor=EN_monitor, name="EN monitor")
 
-conn = landmark_guidance.connections[("PN","KC")]
-print(torch.mm(conn.w, conn.source.s.unsqueeze(-1).float()).squeeze(-1))
 
 ### run network
 
