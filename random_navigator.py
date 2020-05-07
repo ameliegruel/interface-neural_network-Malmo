@@ -13,6 +13,7 @@ from math import sqrt, cos, sin, tan, atan2, degrees, radians
 from skimage.transform import resize
 import numpy as np
 from PIL import Image
+import datetime
 
 import torch
 from bindsnet.network import Network
@@ -20,7 +21,7 @@ from bindsnet.network.nodes import LIFNodes, Input
 from bindsnet.network.topology import Connection, LocalConnection
 from bindsnet.network.monitors import Monitor
 import matplotlib.pyplot as plt 
-from bindsnet.analysis.plotting import plot_input, plot_spikes, plot_voltages
+from bindsnet.analysis.plotting import plot_voltages, plot_spikes
 
 if sys.version_info[0] == 2:
     sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)  # flush print output immediately
@@ -101,7 +102,7 @@ missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
                         <DrawCuboid type="air" x1="''' + str(old_div(-ArenaSide,2)) + '''" y1="''' + str(ArenaFloor) + '''" z1="''' + str(old_div(-ArenaSide,2)) + '''" x2="''' + str(old_div(ArenaSide,2)) + '''" y2="20" z2="''' + str(old_div(ArenaSide,2)) + '''"/>
                         ''' + GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor) + '''
                     </DrawingDecorator>
-                    <ServerQuitFromTimeUp timeLimitMs="100000"/>
+                    <ServerQuitFromTimeUp timeLimitMs="250000"/>
                     <ServerQuitWhenAnyAgentFinishes/>
                 </ServerHandlers>
               </ServerSection>
@@ -346,6 +347,7 @@ def randomNavigator(movements, last_command):
 ##################################################################################################################
 
 def initReactionNetwork():
+    begin_time = datetime.datetime.now()
     dt=0.1
     landmark_guidance = Network(dt=dt)
 
@@ -360,6 +362,10 @@ def initReactionNetwork():
 
     input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
     PN_KC = Connection(source=PN, target=KC)
+    for KC_neuron in range(KC.n):
+        idx_PN = list(set(range(PN.n)) - set(np.random.choice(360,10,replace=False)))
+        for PN_neuron in idx_PN: 
+            PN_KC.w[PN_neuron][KC_neuron] = 0
     KC_EN = Connection(source=KC, target=EN)
     landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
     landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
@@ -373,15 +379,14 @@ def initReactionNetwork():
     landmark_guidance.add_monitor(monitor=PN_monitor, name="PN monitor")
     landmark_guidance.add_monitor(monitor=KC_monitor, name="KC monitor")
     landmark_guidance.add_monitor(monitor=EN_monitor, name="EN monitor")
+    print(datetime.datetime.now()-begin_time)
 
     return landmark_guidance
 
-def reactionToRandomNavigation(reaction_network, ant_view, plots):
+def reactionToRandomNavigation(reaction_network, ant_view, plot_option=None, plots=None):
     dt = reaction_network.dt
     sim_time = 50 # milliseconds
-    
-    for monitor in reaction_network.monitors.keys() :
-        reaction_network.monitors[monitor].reset_state_variables()
+    reaction_network.reset_state_variables()
     
     input_data = {"Input": torch.from_numpy(np.array([ant_view for i in range(int(sim_time/dt))]))}
     reaction_network.run(inputs=input_data, time=sim_time)
@@ -398,26 +403,89 @@ def reactionToRandomNavigation(reaction_network, ant_view, plots):
         "EN" : reaction_network.monitors["EN monitor"].get("v")
     }
 
+    if plot_option != None : 
+        if plots == None : 
+            print("Error : if plot_option is not None, plots has to be defined")
+        else :
+            plots = plotReactionNetwork(spikes, voltages, plots, plot_option)
+            return (spikes, voltages, plots)
+    
+    return (spikes, voltages)
+
+
+# def plot_spikes(spikes):
+#     n_subplots = len(spikes.keys())
+#     spikes = {k: v.view(v.size(0), -1) for (k,v) in spikes.items()}
+#     time = spikes[list(spikes.keys())[0]].shape[0]
+#     fig, axes = plt.subplots(n_subplots,1)
+#     if n_subplots == 1 :
+#         axes = [axes]
+
+#     current_subplot = 0
+#     for key in spikes.keys():
+#         n_neurons = spikes[key].size(-1)
+#         time_list = []
+#         neuron_list = []
+#         for t in range(time):
+#             tmp = sum(np.nonzero(spikes[key][t]).tolist(), [])
+#             neuron_list += tmp
+#             time_list += [t for i in range(len(tmp))]
+
+#         axes[current_subplot].scatter(time_list, neuron_list, s=1, c="cornflowerblue")
+#         axes[current_subplot].set_xlim(left=0, right=time)
+#         axes[current_subplot].set_ylim(bottom=-0.5, top=n_neurons-0.5)
+#         axes[current_subplot].set_title("%s spikes for neurons (%d - %d) from t = %d to %d " % (key, 0, n_neurons, 0, time))
+#         plt.setp(axes, xlabel="Simulation time", ylabel="Neuron index")
+
+#         current_subplot += 1
+#     plt.tight_layout()
+
+# def plot_voltages(voltage):
+#     n_subplots = len(voltage.keys())
+#     voltage = {k: v.view(v.size(0), -1) for (k,v) in voltage.items()}
+#     time = voltage[list(voltage.keys())[0]].shape[0]
+#     fig, axes = plt.subplots(n_subplots,1)
+#     if n_subplots == 1 :
+#         axes = [axes]
+
+#     current_subplot = 0
+#     for key in voltage.keys():
+#         n_neurons = voltage[key].size(-1)
+#         voltage[key] = voltage[key].t()
+        
+#         for neuron in voltage[key]:
+#             axes[current_subplot].plot(range(1,time+1), neuron)
+#         axes[current_subplot].set_title("%s voltages for neurons (%d - %d) from t = %d to %d  " % (key, 0, n_neurons, 0, time))
+#         axes[current_subplot].set_xlim(left=0, right=time)
+#         plt.setp(axes, xlabel="Simulation time", ylabel="Voltage")
+
+#         current_subplot += 1 
+#     plt.tight_layout()
+
+def plotReactionNetwork(spikes, voltages, plots, option, idx=""):
     plt.ioff()
     if len(plots.keys()) == 0:
         im_spikes, axes_spikes = plot_spikes(spikes)
-        # plt.savefig("./fig_network_random_nav/test/green_spikes_0.1dt_0.01.png")
         im_voltage, axes_voltage = plot_voltages(voltages, plot_type="line")
-        # plt.savefig("./fig_network_random_nav/test/green_voltages_0.1dt_0.01.png")
     else : 
         im_spikes, axes_spikes = plot_spikes(spikes, ims=plots["Spikes_ims"], axes=plots["Spikes_axes"])
         im_voltage, axes_voltage = plot_voltages(voltages, plot_type="line", ims=plots["Voltage_ims"], axes=plots["Voltage_axes"])
-        
-    for Ssubplot in axes_spikes:
-        Ssubplot.set_xlim(left=0,right=sim_time/dt)
-    for Vsubplot in axes_voltage:
-        Vsubplot.set_xlim(left=0,right=sim_time/dt)
+    
+    # plot_spikes(spikes)
+    # plot_voltages(voltages)
     
     for (name, item) in [("Spikes_ims",im_spikes), ("Spikes_axes", axes_spikes), ("Voltage_ims", im_voltage), ("Voltage_axes", axes_voltage)]:
         plots[name] = item
 
-    plt.show(block=False)
-    plt.pause(0.01)
+    if option == "display":
+        plt.show(block=False)
+        plt.pause(0.01)
+    elif option == "save":
+        name_figs = {1: "spikes", 2: "voltage"}
+        os.makedirs("./result_random_nav/", exist_ok=True)
+        for num in plt.get_fignums():
+            plt.figure(num)
+            plt.savefig("./result_random_nav/"+name_figs[num]+str(idx)+".png")
 
     return plots
 
@@ -451,6 +519,14 @@ if agent_host.receivedArgument("help"):
     print(agent_host.getUsage())
     exit(0)
 
+# Parameters and network initialization
+print("Network initialization", end=' ')
+reaction_network = initReactionNetwork()
+
+nb_world_ticks = 0
+plots = {}
+last_com = "z"
+
 my_mission = MalmoPython.MissionSpec(missionXML, True)
 my_mission_record = MalmoPython.MissionRecordSpec()
 
@@ -481,15 +557,6 @@ while not world_state.has_mission_begun:
 print()
 print("Mission running ", end=' ')
 
-# intialize ant_view
-# ant_view = np.array([[[[np.zeros(360)]]]])
-# ant_view.shape = (1,1,10,36)
-
-nb_world_ticks = 0
-plots = {}
-reaction_network = initReactionNetwork()
-last_com = "z"
-
 # Loop until mission ends:
 while world_state.is_mission_running :
     print(".", end="")
@@ -503,19 +570,12 @@ while world_state.is_mission_running :
         msg = world_state.observations[-1].text 
         ObsJSON = json.loads(msg)
         ObsEnv = {"xPos": ObsJSON["XPos"], "yPos": ObsJSON["YPos"], "zPos": ObsJSON["ZPos"], "yaw": getYaw(-ObsJSON["Yaw"])}
-        # ObsEnv["FrontEnv"] = GetFrontVision(ObsJSON["FrontEnv21x21"],21,ObsEnv["yaw"])
-        # ObsEnv["objects"] = GetObjects(ObsEnv['FrontEnv'],21)
-        
-        # VisualizeFrontVison(ObsEnv["FrontEnv"])  # => to visualize the frontal vision as seen by the agent
-
-        ### the important informations are contained in the dictionnary ObsEnv
-        # print(ObsEnv.keys())
-        # VisualizeFrontVison(ObsEnv["FrontEnv"])
 
         ### get ant's visions
         ant_view = 0.01*np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
         ### launch neural network
-        plots = reactionToRandomNavigation(reaction_network, ant_view, plots)
+        (spikes, voltages) = reactionToRandomNavigation(reaction_network, ant_view)
+        # (spikes, voltages, plots) = reactionToRandomNavigation(reaction_network, ant_view, plot_option="display", plots=plots)
 
         movements = ["z","q","d"]
         com=randomNavigator(movements, last_com)
@@ -538,7 +598,8 @@ while world_state.is_mission_running :
     nb_world_ticks += 1
 
 print("Simulation over")
-# reactionToRandomNavigation(ant_view)
+
+plotReactionNetwork(spikes, voltages, plots, option="save")
 
 print()
 print("Mission ended")
