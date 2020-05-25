@@ -15,18 +15,14 @@ from bindsnet.analysis.plotting import plot_spikes, plot_voltages, plot_input
 ### parameters
 
 if len(sys.argv) == 1:
-    print("Warning - usage : python LM_model.py [name of learned image file] [name(s) of test image file(s)] [facultative modification to input data]")
+    print("Warning - usage : python LM_model.py [name of learned image file] [name(s) of test image file(s)]")
     sys.exit()
 
 dt = 1.0
 learning_time = 50 # milliseconds
 test_time = 50 # milliseconds
-try:
-    modification = float(sys.argv[-1])
-    last_file_index = len(sys.argv)-1
-except ValueError:
-    modification = 1.0
-    last_file_index = len(sys.argv)
+modification = 0.1
+last_file_index = len(sys.argv)
 
 ### get image data
 
@@ -83,8 +79,6 @@ landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
 landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
 
 # learning rule
-# KC_EN.update_rule = MSTDPET(connection=KC_EN, nu=1.1, tc_e_trace = 40.0, tc_plus=15.0, tc_minus=15.0)
-# KC_EN.update_rule = PostPre(connection=KC_EN, nu=1.1)
 KC_EN.update_rule = STDP(connection=KC_EN, nu=(1.0,1.0), tc_eligibility_trace=40.0, tc_plus=15, tc_minus=15, tc_reward=20.0)
 
 # monitors
