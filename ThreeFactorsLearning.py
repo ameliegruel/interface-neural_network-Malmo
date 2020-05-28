@@ -89,7 +89,7 @@ class STDP(ABC):
 
         # debug
         self.cumul_weigth = self.connection.w.t()
-        print(self.connection.w)
+        # print(self.connection.w)
         self.cumul_et = self.target.eligibility_trace.t()
         self.cumul_reward = self.connection.reward_concentration.t()
 
@@ -129,7 +129,7 @@ class STDP(ABC):
 
         # Update weight
         update = self.target.eligibility_trace * self.connection.reward_concentration * self.connection.dt
-        print("update",update)
+        # print("update",update)
         self.connection.w = torch.nn.Parameter(torch.max(torch.tensor(0.0001), self.connection.w + update))
 
         # Implement weight decay
@@ -144,4 +144,4 @@ class STDP(ABC):
         self.cumul_weigth = torch.cat((self.cumul_weigth, self.connection.w.t()),0)
         self.cumul_et = torch.cat((self.cumul_et,self.target.eligibility_trace.t()),0)
         self.cumul_reward = torch.cat((self.cumul_reward, self.connection.reward_concentration.t()),0)
-        print(self.connection.w)
+        # print(self.connection.w)
