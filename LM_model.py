@@ -68,8 +68,8 @@ landmark_guidance.add_layer(layer=EN, name="EN")
 # connections
 input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
 
-# PN_KC = Connection(source=PN, target=KC, w=torch.ones(PN.n, KC.n)*0.25)
-PN_KC = Connection(source=PN, target=KC)
+PN_KC = Connection(source=PN, target=KC, w=torch.ones(PN.n, KC.n)*0.25)
+# PN_KC = Connection(source=PN, target=KC)
 connection_weight = PN_KC.w.clone().t()
 connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.)
 PN_KC.w = torch.nn.Parameter(connection_weight.t())
