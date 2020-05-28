@@ -25,7 +25,7 @@ class STDP(ABC):
         weight_decay: float = 0.0,
         tc_eligibility_trace: float = 0.0,
         tc_reward: float = 0.0,
-        tc_minus: float =0.0,
+        tc_minus: float = 0.0,
         tc_plus: float = 0.0,
         **kwargs
     ) -> None:
@@ -46,6 +46,7 @@ class STDP(ABC):
         self.connection = connection
         self.source = connection.source
         self.target = connection.target
+        self.t = 0 # time in ms, number of updates
 
         self.wmin = connection.wmin
         self.wmax = connection.wmax
@@ -67,6 +68,7 @@ class STDP(ABC):
         if not hasattr(self.connection, "reward_concentration"):
             self.connection.reward_concentration = torch.zeros(*self.connection.w.shape) # initialize the extracellular concentration of biogenic amine
         self.tc_reward = tc_reward
+        self.reward = 0 # nul for every t except t=40 ms
 
         # Parameter update reduction across minibatch dimension.
         if reduction is None:
@@ -85,38 +87,49 @@ class STDP(ABC):
                 "This learning rule is not supported for this Connection type."
             )
 
+        # debug
+        self.cumul_weigth = self.connection.w.t()
+        print(self.connection.w)
+        self.cumul_et = self.target.eligibility_trace.t()
+        self.cumul_reward = self.connection.reward_concentration.t()
+
     def update(self, **kwargs) -> None:
         # language=rst
         """
         Post-pre learning rule method.
         """
-        if not hasattr(self, "reward"):
+        if self.t == 40:
+            print("reward")
             self.reward = kwargs["reward"]   # amount of biogenic amine released 
                                     # NB : argument 'reward' is defined in Network() initialization, not in STDP()
+        elif self.t > 40:
+            self.reward = 0
 
         batch_size = self.source.batch_size
 
         pre_x = self.source.x.view(-1).unsqueeze(1)
         post_x = self.target.x.view(-1).unsqueeze(1)
+        pre_s = self.source.s.view(-1).unsqueeze(1)
+        post_s = self.target.s.view(-1).unsqueeze(1)
 
         # Get STDP
         delta_t = post_x - pre_x
-        tau = torch.where(delta_t > 0, -self.tc_plus, self.tc_minus)
-        nu = torch.where(delta_t > 0, self.nu[1], -self.nu[0])
+        tau = torch.where(delta_t > 0, self.tc_plus, -self.tc_minus)
+        nu = torch.where(delta_t > 0, self.nu[1], self.nu[0])
         STDP = nu * torch.exp(delta_t / tau)
-        # self.connection.w += STDP
-
+        
         # Update eligibility trace
-        update = -self.target.eligibility_trace / self.tc_eligibility_trace + STDP 
+        pre_post_spike_occured = torch.max(pre_s, post_s).float()  # True or 1 if a spike occured either in pre or post neuron, False or 0 otherwise
+        update = -self.target.eligibility_trace / self.tc_eligibility_trace + STDP * pre_post_spike_occured
         self.target.eligibility_trace += self.connection.dt * update
 
         # Update reward
         update = -self.connection.reward_concentration / self.tc_reward
-        # self.connection.reward_concentration += update * self.connection.dt + self.reward
-        self.connection.reward_concentration += update * self.connection.dt
+        self.connection.reward_concentration += update * self.connection.dt + self.reward
 
         # Update weight
         update = self.target.eligibility_trace * self.connection.reward_concentration * self.connection.dt
+        print("update",update)
         self.connection.w = torch.nn.Parameter(torch.max(torch.tensor(0.0001), self.connection.w + update))
 
         # Implement weight decay
@@ -127,3 +140,8 @@ class STDP(ABC):
         if (self.connection.wmin != -np.inf or self.connection.wmax != np.inf):
             self.connection.w.clamp_(self.connection.wmin, self.connection.wmax)
 
+        self.t += 1
+        self.cumul_weigth = torch.cat((self.cumul_weigth, self.connection.w.t()),0)
+        self.cumul_et = torch.cat((self.cumul_et,self.target.eligibility_trace.t()),0)
+        self.cumul_reward = torch.cat((self.cumul_reward, self.connection.reward_concentration.t()),0)
+        print(self.connection.w)

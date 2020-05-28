@@ -57,8 +57,8 @@ landmark_guidance = Network(dt=dt)
 
 # layers
 input_layer = Input(n=360, shape=(10,36))
-PN = LIFNodes(n=360, w= torch.tensor(0.25), traces=True, tc_decay=10.0)
-KC = LIFNodes(n=20000, traces=True, w= torch.tensor(2.0), tc_decay=10.0)
+PN = LIFNodes(n=360, traces=True, tc_decay=3.0)
+KC = LIFNodes(n=20000, traces=True, tc_decay=8.0)
 EN = LIFNodes(n=1, traces=True, tc_decay=10.0)
 landmark_guidance.add_layer(layer=input_layer, name="Input")
 landmark_guidance.add_layer(layer=PN, name="PN")
@@ -68,18 +68,20 @@ landmark_guidance.add_layer(layer=EN, name="EN")
 # connections
 input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
 
+# PN_KC = Connection(source=PN, target=KC, w=torch.ones(PN.n, KC.n)*0.25)
 PN_KC = Connection(source=PN, target=KC)
 connection_weight = PN_KC.w.clone().t()
 connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.)
 PN_KC.w = torch.nn.Parameter(connection_weight.t())
 
-KC_EN = Connection(source=KC, target=EN)
+KC_EN = Connection(source=KC, target=EN, w=torch.ones(KC.n, EN.n)*2.0)
+# KC_EN = Connection(source=KC, target=EN)
 landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
 landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
 landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
 
 # learning rule
-KC_EN.update_rule = STDP(connection=KC_EN, nu=(1.0,1.0), tc_eligibility_trace=40.0, tc_plus=15, tc_minus=15, tc_reward=20.0)
+KC_EN.update_rule = STDP(connection=KC_EN, nu=(-1.0,-1.0), tc_eligibility_trace=40.0, tc_plus=15, tc_minus=15, tc_reward=20.0)
 
 # monitors
 input_monitor = Monitor(obj=input_layer, state_vars=("s"))
@@ -98,9 +100,27 @@ begin_time = datetime.datetime.now()
 print("Run - learning view")
 
 landmark_guidance.learning = True
-landmark_guidance.run(inputs=input_data["Learning"], time=learning_time, reward=20)
+landmark_guidance.run(inputs=input_data["Learning"], time=learning_time, reward=0.5)
 
 print("> View learned")
+# print(PN_KC.cumul_weigth)
+
+plt.figure()
+plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_weigth))
+plt.title("Evolution of KC_EN weights")
+
+plt.figure()
+plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_et))
+plt.title("Evolution of KC_EN eligibility traces")
+
+plt.figure()
+plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_reward))
+plt.title("Evolution of KC_EN reward concentrations")
+
+# for i in KC_EN.w:
+#     if i.item() > 0.0001:
+#         print((KC_EN.w == i.item()).nonzero()[0].item()," - ", i.item())
+        # print(i)
 
 ### run network : test on one or more views
 
@@ -130,21 +150,21 @@ for (name, data) in input_data["Test"].items():
         view["mean_EN"] = len(torch.nonzero(spikes["EN"]))
         view["name"] = name
 
-    # Pspikes = plot_spikes(spikes)
-    # for subplot in Pspikes[1]:
-    #     subplot.set_xlim(left=0,right=test_time)
-    # Pspikes[1][2].set_ylim(bottom=0, top=KC.n)
-    # plt.suptitle("Results for " + name)
+    Pspikes = plot_spikes(spikes)
+    for subplot in Pspikes[1]:
+        subplot.set_xlim(left=0,right=test_time)
+    Pspikes[1][2].set_ylim(bottom=0, top=KC.n)
+    plt.suptitle("Results for " + name)
     # plt.savefig("./result_random_nav/1s_spikes_"+sys.argv[1]+".png")
 
-#     Pvoltages = plot_voltages(voltages, plot_type="line")
-#     for v_subplot in Pvoltages[1]:
-#         v_subplot.set_xlim(left=0, right=test_time)
-#     Pvoltages[1][2].set_ylim(bottom=min(-70, min(voltages["EN"])), top=max(-50, max(voltages["EN"])))
-#     plt.suptitle("Results for " + name)
-#     # plt.savefig("./result_random_nav/1s_voltages_"+sys.argv[1]+".png")
+    Pvoltages = plot_voltages(voltages, plot_type="line")
+    for v_subplot in Pvoltages[1]:
+        v_subplot.set_xlim(left=0, right=test_time)
+    Pvoltages[1][2].set_ylim(bottom=min(-70, min(voltages["EN"])), top=max(-50, max(voltages["EN"])))
+    plt.suptitle("Results for " + name)
+    # plt.savefig("./result_random_nav/1s_voltages_"+sys.argv[1]+".png")
 
-    plt.show(block=False)
+    # plt.show(block=False)
 
 print("Most familiar view:", view["name"])
 
