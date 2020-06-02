@@ -3,7 +3,7 @@ import torch
 import sys
 import numpy as np
 from bindsnet.network import Network
-from bindsnet.network.nodes import Input, LIFNodes
+from bindsnet.network.nodes import Input, CurrentLIFNodes
 from bindsnet.network.topology import Connection, SparseConnection, LocalConnection
 from bindsnet.network.monitors import Monitor
 # from bindsnet.learning import PostPre, MSTDPET, MSTDP
@@ -21,8 +21,10 @@ if len(sys.argv) == 1:
 dt = 1.0
 learning_time = 50 # milliseconds
 test_time = 50 # milliseconds
-modification = 0.1
+modification = 0.01 # best results with this modification for CurrentLIF (for LIF, 0.1)
+A = 0.2
 last_file_index = len(sys.argv)
+
 
 ### get image data
 
@@ -57,9 +59,9 @@ landmark_guidance = Network(dt=dt)
 
 # layers
 input_layer = Input(n=360, shape=(10,36))
-PN = LIFNodes(n=360, traces=True, tc_decay=3.0)
-KC = LIFNodes(n=20000, traces=True, tc_decay=8.0)
-EN = LIFNodes(n=1, traces=True, tc_decay=10.0)
+PN = CurrentLIFNodes(n=360, traces=True, tc_decay=10.0, tc_i_decay=3.0)
+KC = CurrentLIFNodes(n=20000, traces=True, tc_decay=10.0, tc_i_decay=8.0)
+EN = CurrentLIFNodes(n=1, traces=True, tc_decay=10.0)
 landmark_guidance.add_layer(layer=input_layer, name="Input")
 landmark_guidance.add_layer(layer=PN, name="PN")
 landmark_guidance.add_layer(layer=KC, name="KC")
@@ -69,19 +71,17 @@ landmark_guidance.add_layer(layer=EN, name="EN")
 input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
 
 PN_KC = Connection(source=PN, target=KC, w=torch.ones(PN.n, KC.n)*0.25)
-# PN_KC = Connection(source=PN, target=KC)
 connection_weight = PN_KC.w.clone().t()
 connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.)
 PN_KC.w = torch.nn.Parameter(connection_weight.t())
 
 KC_EN = Connection(source=KC, target=EN, w=torch.ones(KC.n, EN.n)*2.0)
-# KC_EN = Connection(source=KC, target=EN)
 landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
 landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
 landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
 
 # learning rule
-KC_EN.update_rule = STDP(connection=KC_EN, nu=(-1.0,-1.0), tc_eligibility_trace=40.0, tc_plus=15, tc_minus=15, tc_reward=20.0)
+KC_EN.update_rule = STDP(connection=KC_EN, nu=(-A,-A), tc_eligibility_trace=40.0, tc_plus=15, tc_minus=15, tc_reward=20.0)
 
 # monitors
 input_monitor = Monitor(obj=input_layer, state_vars=("s"))
@@ -103,19 +103,25 @@ landmark_guidance.learning = True
 landmark_guidance.run(inputs=input_data["Learning"], time=learning_time, reward=0.5)
 
 print("> View learned")
-# print(PN_KC.cumul_weigth)
+# print(PN_KC.cumul_weight)
+
+# plt.figure()
+# plt.plot(range(learning_time+1), torch.tensor(PN_KC.cumul_weight))
+# plt.title("Evolution of PN_KC weights")
 
 plt.figure()
 plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_weigth))
-plt.title("Evolution of KC_EN weights")
+plt.title("Evolution of KC_EN weights for A="+str(A))
+# plt.savefig("./manual_tuning/weights_nu"+str(A)+".png")
 
 plt.figure()
 plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_et))
-plt.title("Evolution of KC_EN eligibility traces")
+plt.title("Evolution of KC_EN eligibility traces for A="+str(A))
+# plt.savefig("./manual_tuning/eligibility_nu"+str(A)+".png")
 
-plt.figure()
-plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_reward))
-plt.title("Evolution of KC_EN reward concentrations")
+# plt.figure()
+# plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_reward))
+# plt.title("Evolution of KC_EN reward concentrations")
 
 # for i in KC_EN.w:
 #     if i.item() > 0.0001:
@@ -127,13 +133,13 @@ plt.title("Evolution of KC_EN reward concentrations")
 print("Run - test of one or more views")
 view = {"name": None, "mean_EN" : None}
 
-plt.ioff()
+# plt.ioff()
 for (name, data) in input_data["Test"].items():
     landmark_guidance.learning = False
     landmark_guidance.run(inputs=data, time=test_time)
 
     spikes = {
-        "Input" : input_monitor.get("s")[:test_time],
+        "Input" : input_monitor.get("s")[-test_time:],
         "PN" : PN_monitor.get("s")[-test_time:],
         "KC" : KC_monitor.get("s")[-test_time:],
         "EN" : EN_monitor.get("s")[-test_time:]
@@ -164,7 +170,7 @@ for (name, data) in input_data["Test"].items():
     plt.suptitle("Results for " + name)
     # plt.savefig("./result_random_nav/1s_voltages_"+sys.argv[1]+".png")
 
-    # plt.show(block=False)
+    plt.show(block=False)
 
 print("Most familiar view:", view["name"])
 
