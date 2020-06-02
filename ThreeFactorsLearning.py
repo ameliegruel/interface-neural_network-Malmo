@@ -113,8 +113,9 @@ class STDP(ABC):
         post_s = self.target.s.view(-1).unsqueeze(1)
 
         # Get STDP
-        delta_t = post_x - pre_x
-        tau = torch.where(delta_t > 0, self.tc_plus, -self.tc_minus)
+        delta_t = pre_x - post_x
+        delta_t = torch.where(delta_t == 0, torch.tensor(-50.0), delta_t) # if delta_t == 0, STDP == 0 (interruption in the function)
+        tau = torch.where(delta_t > 0, -self.tc_plus, self.tc_minus)
         nu = torch.where(delta_t > 0, self.nu[1], self.nu[0])
         STDP = nu * torch.exp(delta_t / tau)
         
@@ -137,8 +138,8 @@ class STDP(ABC):
             self.connection.w -= self.weight_decay * self.connection.w
 
         # Bound weights.
-        if (self.connection.wmin != -np.inf or self.connection.wmax != np.inf):
-            self.connection.w.clamp_(self.connection.wmin, self.connection.wmax)
+        # if (self.connection.wmin != -np.inf or self.connection.wmax != np.inf):
+        #     self.connection.w.clamp_(self.connection.wmin, self.connection.wmax)
 
         self.t += 1
         self.cumul_weigth = torch.cat((self.cumul_weigth, self.connection.w.t()),0)
