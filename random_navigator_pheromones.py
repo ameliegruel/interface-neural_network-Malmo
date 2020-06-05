@@ -118,7 +118,7 @@ missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
                         </Grid>
                         <Grid name="PheromonesTrace">
                             <min x="-1" y="-1" z="-1"/>
-                            <max x="1" y="-1" z="1"/>
+                            <max x="1" y="0" z="1"/>
                         </Grid>
                     </ObservationFromGrid>
                     <AgentQuitFromTouchingBlockType>
@@ -331,9 +331,19 @@ def GetObjects(grid,side) :
 ########################################## NAVIGATION ########################################################
 ##############################################################################################################
 
-def randomNavigator(movements, last_command):
-    movements.remove(last_command)
-    return random.choice(movements)
+def randomNavigator(ObsEnv, direction, last_command):
+    BlocksInFront = [ObsEnv["GridObstacles"][i] for i in getWhatIsInFront(round(ObsEnv['yaw']))[1:-1]]
+    if last_command == None : 
+        return random.choice(direction)
+    elif BlocksInFront == ['air','air','air']:
+        return "z"
+    elif BlocksInFront != ['air','air','air']:  # tourner pour s'éloigner de l'obstacle ? 
+        if BlocksInFront[0] == "air":
+            return "q"
+        elif BlocksInFront[2] == "air":
+            return "d"
+        else : 
+            return random.choice(direction)
 
 def addPheromones(ObsEnv,agent,turn=False):
     if turn==False:
@@ -370,13 +380,11 @@ def getWhatIsInFront(agentYaw):
     }
     for yaw in whatIsInFront.keys():
         if agentYaw in yaw:
-            print("YESSSSS", yaw, "=>", whatIsInFront[yaw])
+            # print("YESSSSS", yaw, "=>", whatIsInFront[yaw])
             return whatIsInFront[yaw]
 
 def followPheromonesPath(ObsEnv,agent):
-    print(ObsJSON["PheromonesTrace"], ObsEnv["yaw"])
     BlocksInFront = getWhatIsInFront(round(ObsEnv["yaw"]))
-    print(BlocksInFront)
     directions = {
         # BlocksInFront[0]: "q",
         # BlocksInFront[1]: "z",
@@ -387,7 +395,7 @@ def followPheromonesPath(ObsEnv,agent):
         BlocksInFront[3]: "d",
         BlocksInFront[4]: "d"
     }
-    BlocksWithGold = list(filter(lambda x: ObsEnv["PheromonesTrace"][x] == 'gold_block', BlocksInFront))
+    BlocksWithGold = list(filter(lambda x: ObsEnv["GridPheromonesTrace"][x] == 'gold_block', BlocksInFront))
     print(BlocksWithGold)
     if BlocksWithGold == [] :
         return random.choice(["q","d"])
@@ -452,7 +460,7 @@ print()
 print("Mission running ", end=' ')
 
 nb_world_ticks = 1
-last_com = "z"
+last_com = None
 
 # Loop until mission ends:
 while world_state.is_mission_running :
@@ -469,17 +477,18 @@ while world_state.is_mission_running :
         ObsEnv = {"xPos": ObsJSON["XPos"], "yPos": ObsJSON["YPos"], "zPos": ObsJSON["ZPos"], "yaw": getYaw(-ObsJSON["Yaw"])}
         # ObsEnv["FrontEnv"] = GetFrontVision(ObsJSON["FrontEnv21x21"],21,ObsEnv["yaw"])
         # ObsEnv["objects"] = GetObjects(ObsEnv['FrontEnv'],21)
-        ObsEnv["PheromonesTrace"] = ObsJSON["PheromonesTrace"]
+        ObsEnv["GridPheromonesTrace"] = ObsJSON["PheromonesTrace"][:int(len(ObsJSON["PheromonesTrace"])/2)] # permet de récupérer ce que l'agent perçoit au niveau des phéromones
+        ObsEnv["GridObstacles"] = ObsJSON["PheromonesTrace"][-int(len(ObsJSON["PheromonesTrace"])/2):] # permet de dire si l'agent s'approche d'un obstacle
 
         ### get ant's vision
         # ant_view = getAntView(video_height,video_width,world_state.video_frames[0].pixels)
         # visualizeAntVision(ant_view,nb_world_ticks)
 
 
-        movements = ["z","q","d"]
+        direction = ["q","d"]
         if nb_world_ticks <= timeRandomNav:
             addPheromones(ObsEnv,agent_host) 
-            com=randomNavigator(movements,last_com)
+            com=randomNavigator(ObsEnv, direction,last_com)
             # move for 1 world tick
             agent_host.sendCommand("move 1")
         elif nb_world_ticks == timeRandomNav+1:
