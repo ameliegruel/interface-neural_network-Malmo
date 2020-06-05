@@ -6,8 +6,7 @@ from bindsnet.network import Network
 from bindsnet.network.nodes import Input, CurrentLIFNodes
 from bindsnet.network.topology import Connection, SparseConnection, LocalConnection
 from bindsnet.network.monitors import Monitor
-# from bindsnet.learning import PostPre, MSTDPET, MSTDP
-from ThreeFactorsLearning import STDP
+from ThreeFactorsLearning import STDP, AllToAllConnection
 
 import matplotlib.pyplot as plt
 from bindsnet.analysis.plotting import plot_spikes, plot_voltages, plot_input
@@ -22,8 +21,14 @@ dt = 1.0
 learning_time = 50 # milliseconds
 test_time = 50 # milliseconds
 modification = 0.01 # best results with this modification for CurrentLIF (for LIF, 0.1)
-A = 0.2
-last_file_index = len(sys.argv)
+try:
+    A = int(sys.argv[-1])*0.1
+    threshold = int(sys.argv[-1])*0.0001
+    last_file_index = len(sys.argv) - 2
+except ValueError:
+    A = 0.1
+    threshold = 0.0001
+    last_file_index = len(sys.argv)
 
 
 ### get image data
@@ -59,8 +64,8 @@ landmark_guidance = Network(dt=dt)
 
 # layers
 input_layer = Input(n=360, shape=(10,36))
-PN = CurrentLIFNodes(n=360, traces=True, tc_decay=10.0, tc_i_decay=3.0)
-KC = CurrentLIFNodes(n=20000, traces=True, tc_decay=10.0, tc_i_decay=8.0)
+PN = CurrentLIFNodes(n=360, traces=True, tc_decay=10.0)
+KC = CurrentLIFNodes(n=20000, traces=True, tc_decay=10.0)
 EN = CurrentLIFNodes(n=1, traces=True, tc_decay=10.0)
 landmark_guidance.add_layer(layer=input_layer, name="Input")
 landmark_guidance.add_layer(layer=PN, name="PN")
@@ -70,18 +75,17 @@ landmark_guidance.add_layer(layer=EN, name="EN")
 # connections
 input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
 
-PN_KC = Connection(source=PN, target=KC, w=torch.ones(PN.n, KC.n)*0.25)
-connection_weight = PN_KC.w.clone().t()
+connection_weight = 0.25*torch.ones(PN.n, KC.n).t()
 connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.)
-PN_KC.w = torch.nn.Parameter(connection_weight.t())
+PN_KC = AllToAllConnection(source=PN, target=KC, w=connection_weight.t(), tc_synaptic=3.0, phi=0.93)
 
-KC_EN = Connection(source=KC, target=EN, w=torch.ones(KC.n, EN.n)*2.0)
+KC_EN = AllToAllConnection(source=KC, target=EN, w=torch.ones(KC.n, EN.n)*2.0, tc_synaptic=8.0, phi=0.1)
 landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
 landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
 landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
 
 # learning rule
-KC_EN.update_rule = STDP(connection=KC_EN, nu=(-A,-A), tc_eligibility_trace=40.0, tc_plus=15, tc_minus=15, tc_reward=20.0)
+KC_EN.update_rule = STDP(connection=KC_EN, nu=(-A,-A), tc_eligibility_trace=40.0, tc_plus=15, tc_minus=15, tc_reward=20.0, threshold=threshold)
 
 # monitors
 input_monitor = Monitor(obj=input_layer, state_vars=("s"))
@@ -101,41 +105,36 @@ print("Run - learning view")
 
 landmark_guidance.learning = True
 landmark_guidance.run(inputs=input_data["Learning"], time=learning_time, reward=0.5)
+landmark_guidance.learning = False
 
 print("> View learned")
-# print(PN_KC.cumul_weight)
-
-# plt.figure()
-# plt.plot(range(learning_time+1), torch.tensor(PN_KC.cumul_weight))
-# plt.title("Evolution of PN_KC weights")
 
 plt.figure()
 plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_weigth))
-plt.title("Evolution of KC_EN weights for A="+str(A))
-# plt.savefig("./manual_tuning/weights_nu"+str(A)+".png")
+plt.title("Evolution of KC_EN weights for A="+str(A)+" and thresh="+str(threshold))
+# plt.savefig("./manual_tuning/weights_nu"+str(A)+"_thresh"+str(threshold)+".png")
 
 plt.figure()
 plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_et))
-plt.title("Evolution of KC_EN eligibility traces for A="+str(A))
-# plt.savefig("./manual_tuning/eligibility_nu"+str(A)+".png")
+plt.title("Evolution of KC_EN eligibility traces for A="+str(A)+" and thresh="+str(threshold))
+# plt.savefig("./manual_tuning/eligibility_nu"+str(A)+"_thresh"+str(threshold)+".png")
 
-# plt.figure()
-# plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_reward))
-# plt.title("Evolution of KC_EN reward concentrations")
+plt.figure()
+plt.plot(range(learning_time+1), torch.tensor(PN_KC.cumul_weight))
+plt.title("Evolution of PN_KC weights")
 
-# for i in KC_EN.w:
-#     if i.item() > 0.0001:
-#         print((KC_EN.w == i.item()).nonzero()[0].item()," - ", i.item())
-        # print(i)
+plt.figure()
+plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_reward))
+plt.title("Evolution of KC_EN reward concentrations")
 
 ### run network : test on one or more views
 
 print("Run - test of one or more views")
 view = {"name": None, "mean_EN" : None}
 
-# plt.ioff()
+plt.ioff()
 for (name, data) in input_data["Test"].items():
-    landmark_guidance.learning = False
+    landmark_guidance.reset_state_variables()
     landmark_guidance.run(inputs=data, time=test_time)
 
     spikes = {
@@ -161,14 +160,12 @@ for (name, data) in input_data["Test"].items():
         subplot.set_xlim(left=0,right=test_time)
     Pspikes[1][2].set_ylim(bottom=0, top=KC.n)
     plt.suptitle("Results for " + name)
-    # plt.savefig("./result_random_nav/1s_spikes_"+sys.argv[1]+".png")
 
     Pvoltages = plot_voltages(voltages, plot_type="line")
     for v_subplot in Pvoltages[1]:
         v_subplot.set_xlim(left=0, right=test_time)
     Pvoltages[1][2].set_ylim(bottom=min(-70, min(voltages["EN"])), top=max(-50, max(voltages["EN"])))
     plt.suptitle("Results for " + name)
-    # plt.savefig("./result_random_nav/1s_voltages_"+sys.argv[1]+".png")
 
     plt.show(block=False)
 
