@@ -120,7 +120,7 @@ class AllToAllConnection(ABC, Module):
         # # output = self.active_neurotransmitters @ self.w
         # print(output.shape) # size [360,20000]
         output = (self.v_rev - self.source.v) @ (self.w * self.active_neurotransmitters)
-        print(output)
+        # print(output)
         return output
 
     def update(self, **kwargs) -> None:
@@ -159,7 +159,7 @@ class AllToAllConnection(ABC, Module):
         pass
     
 
-######################################################""
+######################################################
 
 
 class STDP(ABC):

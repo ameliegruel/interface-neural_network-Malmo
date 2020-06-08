@@ -3,7 +3,7 @@ import torch
 import sys
 import numpy as np
 from bindsnet.network import Network
-from bindsnet.network.nodes import Input, CurrentLIFNodes
+from bindsnet.network.nodes import Input, CurrentLIFNodes, LIFNodes
 from bindsnet.network.topology import Connection, SparseConnection, LocalConnection
 from bindsnet.network.monitors import Monitor
 from ThreeFactorsLearning import STDP, AllToAllConnection
@@ -20,7 +20,7 @@ if len(sys.argv) == 1:
 dt = 1.0
 learning_time = 50 # milliseconds
 test_time = 50 # milliseconds
-modification = 0.01 # best results with this modification for CurrentLIF (for LIF, 0.1)
+modification = 0.1 # best results with this modification for CurrentLIF (for LIF, 0.1)
 try:
     A = int(sys.argv[-1])*0.1
     threshold = int(sys.argv[-1])*0.0001
@@ -79,7 +79,7 @@ connection_weight = 0.25*torch.ones(PN.n, KC.n).t()
 connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.)
 PN_KC = AllToAllConnection(source=PN, target=KC, w=connection_weight.t(), tc_synaptic=3.0, phi=0.93)
 
-KC_EN = AllToAllConnection(source=KC, target=EN, w=torch.ones(KC.n, EN.n)*2.0, tc_synaptic=8.0, phi=0.1)
+KC_EN = AllToAllConnection(source=KC, target=EN, w=torch.ones(KC.n, EN.n)*2.0, tc_synaptic=8.0, phi=8.0)
 landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
 landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
 landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
@@ -119,9 +119,9 @@ plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_et))
 plt.title("Evolution of KC_EN eligibility traces for A="+str(A)+" and thresh="+str(threshold))
 # plt.savefig("./manual_tuning/eligibility_nu"+str(A)+"_thresh"+str(threshold)+".png")
 
-plt.figure()
-plt.plot(range(learning_time+1), torch.tensor(PN_KC.cumul_weight))
-plt.title("Evolution of PN_KC weights")
+# plt.figure()
+# plt.plot(range(learning_time+1), torch.tensor(PN_KC.cumul_weight))
+# plt.title("Evolution of PN_KC weights")
 
 plt.figure()
 plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_reward))
