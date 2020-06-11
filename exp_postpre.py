@@ -64,9 +64,9 @@ landmark_guidance.add_layer(layer=EN, name="EN")
 # connections
 input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
 
-connection_weight = 0.25*torch.ones(PN.n, KC.n).t()
+connection_weight = 0.005*torch.ones(PN.n, KC.n).t()
 connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.).t()
-indices = torch.nonzero(connection_weight).t()
+# indices = torch.nonzero(connection_weight).t()
 # connection_weight = torch.sparse.FloatTensor(indices, connection_weight[indices[0],indices[1]], connection_weight.size())
 PN_KC = AllToAllConnection(source=PN, target=KC, w=connection_weight, tc_synaptic=3.0, phi=0.93)
 
