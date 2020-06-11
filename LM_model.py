@@ -20,13 +20,13 @@ if len(sys.argv) == 1:
 dt = 1.0
 learning_time = 50 # milliseconds
 test_time = 50 # milliseconds
-modification = 0.1 # best results with this modification for CurrentLIF (for LIF, 0.1)
+modification = 1.0 # best results with this modification for CurrentLIF (for LIF, 0.1)
 try:
     A = int(sys.argv[-1])*0.1
     threshold = int(sys.argv[-1])*0.0001
     last_file_index = len(sys.argv) - 2
 except ValueError:
-    A = 0.1
+    A = 1.0
     threshold = 0.0001
     last_file_index = len(sys.argv)
 
@@ -73,7 +73,8 @@ landmark_guidance.add_layer(layer=KC, name="KC")
 landmark_guidance.add_layer(layer=EN, name="EN")
 
 # connections
-input_PN = LocalConnection(source=input_layer, target=PN, kernel_size=(10,36), stride=(10,36), n_filters=360)
+connection_weight = torch.zeros(input_layer.n, PN.n).scatter_(1,torch.tensor([[i,i] for i in range(PN.n)]),1.)
+input_PN = Connection(source=input_layer, target=PN, w=connection_weight)
 
 connection_weight = 0.25*torch.ones(PN.n, KC.n).t()
 connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.)
