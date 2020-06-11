@@ -108,19 +108,18 @@ class AllToAllConnection(ABC, Module):
         """
 
         # Update of the number of active neurotransmitters for each synapse
-        # pre_spike_occured = s.float() # size [1,360]
-        # print(pre_spike_occured.shape)
-        pre_post_spike_occured = self.get_dirac()
-        update = - self.active_neurotransmitters / self.tc_synaptic + self.phi * pre_post_spike_occured
+        pre_spike_occured = torch.mul(s.float().view(-1,1), torch.ones(*self.active_neurotransmitters.shape))
+        update = - self.active_neurotransmitters / self.tc_synaptic + self.phi * pre_spike_occured
+        update = torch.where(self.w != 0, update, torch.tensor(0.))
         self.active_neurotransmitters += update
-        # print(self.active_neurotransmitters.shape)
 
         # Get input 
-        # print(self.source.v.shape)
-        # # output = self.active_neurotransmitters @ self.w
-        # print(output.shape) # size [360,20000]
-        output = (self.v_rev - self.source.v) @ (self.w * self.active_neurotransmitters)
-        # print(output)
+        print("V",self.target.v.shape, self.target.v)
+        print("S", self.active_neurotransmitters.shape, self.active_neurotransmitters)
+        S = torch.sum(self.active_neurotransmitters.t(), dim=1, keepdim=True).view(1,-1)
+        print("S", S.shape, S)
+        output = (self.v_rev - self.target.v) * torch.max(self.w) * S
+        print("OUTPUT",output.shape, output)
         return output
 
     def update(self, **kwargs) -> None:
