@@ -11,32 +11,41 @@ from ThreeFactorsLearning import STDP, AllToAllConnection
 import matplotlib.pyplot as plt
 from bindsnet.analysis.plotting import plot_spikes, plot_voltages, plot_input
 
-def LM_model(plot_parameters=False, plot_results=False, arguments=False, figures=[]) :
+def LM_model(
+    plot_parameters=False, 
+    plot_results=False, 
+    arguments=False, 
+    figures=None,
+    A=1.0,
+    PN_KC_weight=0.25,
+    min_weight=0.0001,
+    PN_thresh=-40.0,
+    KC_thresh=-25.0,
+    EN_thresh=-40.0) :
 
     ### parameters
-
-    if arguments == True :
-        if len(sys.argv) == 1:
-            print("Warning - usage : python LM_model.py [name of learned image file] [name(s) of test image file(s)]")
-            sys.exit()
 
     dt = 1.0
     learning_time = 50 # milliseconds
     test_time = 50 # milliseconds
     modification = 1.0 # best results with this modification for CurrentLIF (for LIF, 0.1)
-    try:
-        A = int(sys.argv[-1])*0.1
-        threshold = int(sys.argv[-1])*0.0001
-        last_file_index = len(sys.argv) - 2
-    except ValueError:
-        A = 10.0
-        threshold = 0.0001
-        last_file_index = len(sys.argv)
+    
+    if arguments == True :
+        if len(sys.argv) == 1:
+            print("Warning - usage : python LM_model.py [name of learned image file] [name(s) of test image file(s)]")
+            sys.exit()
 
-    if len(figures) > 0:
-        list_files = figures
-    else :
+        try:
+            A = int(sys.argv[-1])*0.1
+            min_weight = int(sys.argv[-1])*0.0001
+            last_file_index = len(sys.argv) - 2
+        except ValueError:
+            last_file_index = len(sys.argv)
         list_files = sys.argv[1:last_file_index]
+    
+    else :
+        list_files = figures
+
 
     ### get image data
     
@@ -70,9 +79,9 @@ def LM_model(plot_parameters=False, plot_results=False, arguments=False, figures
 
     # layers
     input_layer = Input(n=360, shape=(10,36))
-    PN = CurrentLIFNodes(n=360, traces=True, tc_decay=10.0)
-    KC = CurrentLIFNodes(n=20000, traces=True, tc_decay=10.0)
-    EN = CurrentLIFNodes(n=1, traces=True, tc_decay=10.0)
+    PN = CurrentLIFNodes(n=360, traces=True, tc_decay=10.0, thresh=PN_thresh, rest=-60.0)
+    KC = CurrentLIFNodes(n=20000, traces=True, tc_decay=10.0, thresh=KC_thresh, rest=-85.0)
+    EN = CurrentLIFNodes(n=1, traces=True, tc_decay=10.0, thresh=EN_thresh, rest=-60.0)
     landmark_guidance.add_layer(layer=input_layer, name="Input")
     landmark_guidance.add_layer(layer=PN, name="PN")
     landmark_guidance.add_layer(layer=KC, name="KC")
@@ -82,7 +91,7 @@ def LM_model(plot_parameters=False, plot_results=False, arguments=False, figures
     connection_weight = torch.zeros(input_layer.n, PN.n).scatter_(1,torch.tensor([[i,i] for i in range(PN.n)]),1.)
     input_PN = Connection(source=input_layer, target=PN, w=connection_weight)
 
-    connection_weight = 0.004*torch.ones(PN.n, KC.n).t()
+    connection_weight = PN_KC_weight * torch.ones(PN.n, KC.n).t()
     connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.)
     PN_KC = AllToAllConnection(source=PN, target=KC, w=connection_weight.t(), tc_synaptic=3.0, phi=0.93)
 
@@ -92,7 +101,7 @@ def LM_model(plot_parameters=False, plot_results=False, arguments=False, figures
     landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
 
     # learning rule
-    KC_EN.update_rule = STDP(connection=KC_EN, nu=(-A,-A), tc_eligibility_trace=40.0, tc_plus=15, tc_minus=15, tc_reward=20.0, threshold=threshold)
+    KC_EN.update_rule = STDP(connection=KC_EN, nu=(-A,-A), tc_eligibility_trace=40.0, tc_plus=15, tc_minus=15, tc_reward=20.0, min_weight=min_weight)
 
     # monitors
     input_monitor = Monitor(obj=input_layer, state_vars=("s"))
@@ -119,13 +128,13 @@ def LM_model(plot_parameters=False, plot_results=False, arguments=False, figures
     if plot_parameters == True :
         plt.figure()
         plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_weigth))
-        plt.title("Evolution of KC_EN weights for A="+str(A)+" and thresh="+str(threshold))
-        # plt.savefig("./manual_tuning/weights_nu"+str(A)+"_thresh"+str(threshold)+".png")
+        plt.title("Evolution of KC_EN weights for A="+str(A)+" and thresh="+str(min_weight))
+        # plt.savefig("./manual_tuning/weights_nu"+str(A)+"_thresh"+str(min_weight)+".png")
 
         plt.figure()
         plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_et))
-        plt.title("Evolution of KC_EN eligibility traces for A="+str(A)+" and thresh="+str(threshold))
-        # plt.savefig("./manual_tuning/eligibility_nu"+str(A)+"_thresh"+str(threshold)+".png")
+        plt.title("Evolution of KC_EN eligibility traces for A="+str(A)+" and thresh="+str(min_weight))
+        # plt.savefig("./manual_tuning/eligibility_nu"+str(A)+"_thresh"+str(min_weight)+".png")
 
         # plt.figure()
         # plt.plot(range(learning_time+1), torch.tensor(PN_KC.cumul_weight))
@@ -141,6 +150,7 @@ def LM_model(plot_parameters=False, plot_results=False, arguments=False, figures
 
     print("Run - test of one or more views")
     view = {"name": None, "mean_EN" : None}
+    nb_spikes = []
 
     plt.ioff()
     for (name, data) in input_data["Test"].items():
@@ -160,6 +170,7 @@ def LM_model(plot_parameters=False, plot_results=False, arguments=False, figures
         }
 
         print(name, ":  nb spikes =", len(torch.nonzero(spikes["EN"])))
+        nb_spikes.append(len(torch.nonzero(spikes["EN"]))) 
 
         if view["mean_EN"] == None or len(torch.nonzero(spikes["EN"])) < view["mean_EN"] : 
             view["mean_EN"] = len(torch.nonzero(spikes["EN"]))
@@ -184,8 +195,11 @@ def LM_model(plot_parameters=False, plot_results=False, arguments=False, figures
 
     plt.show(block=True)
 
-    return(view['name'])
+    if nb_spikes[0] == nb_spikes[1] == nb_spikes[2]:
+        return (view['name'], True)
+    else :
+        return (view["name"], False)
 
 
 
-# LM_model(plot_parameters=True, plot_results=True, arguments=True)
+# LM_model(plot_parameters=False, plot_results=True, arguments=True, KC_thresh=-15, A=05.0, PN_KC_weight=0.1, EN_thresh=-20)
