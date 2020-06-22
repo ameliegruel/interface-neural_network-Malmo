@@ -1,30 +1,24 @@
 from LM_model import *
 import random
 
-file_results = open("results_automaticLMmodel.txt","w")
+file_results = open("./results_automaticLMmodel/results_automaticLMmodel.csv","w")
+kc = -25
 
-# for (a,w,kc) in [(0.75, 0.1, -20), (0.75, 0.1, -25), (1.0, 0.05, -30), (1.0, 0.05, -35), (1.0, 0.05, -45), (5.0, 0.1, -15),(0.5, 0.1, -25), (0.5, 0.05, -20), (0.5, 0.05, -25), (0.5, 0.05, -45), (0.5, 0.025, -40), (1.0, 0.05, -15), (1.0, 0.05, -20), (5.0, 0.1, -25), (5.0, 0.1, -35)]:
+file_results.write("A;PN KC weight;KC threshold;Number of correct guesses;Figures guessed correctly\n")
 
-for (a,w) in [(0.5, 0.1), (0.5, 0.05), (0.5, 0.025), (0.75,0.1), (1.0,0.1), (1.0,0.05), (5.0, 0.1), (5.0, 0.05)]:
+for a in [0.2,0.5,0.75,1.0,2.5,5.0] :
 
-    for kc in [-15.0, -20.0, -25.0, -30.0,-35.0, -40.0, -45.0, -50.0]:
+    for w in [0.25,0.1,0.05,0.025,0.01,0.005]:
 
-        file_results.write("### Test for A="+str(a)+" and PN_KC_weight="+str(w)+" and KC threshold="+str(kc)+" ###\n")
-        print("\n###################################\nA =",a, "and PN_KC_weight =", w, "and KC threshold =",kc,"\n#################################\n")
+        # print("\n###################################\nA =",a, "and PN_KC_weight =", w, "and KC threshold =",kc,"\n#################################\n")
+        print("\n###################################\nA =",a, "and PN_KC_weight =", w,"\n#################################\n")
 
-        # file_results.write("##### BATCH "+str(i)+" #####")
-        # print("\n###################################\nBATCH =",i,"\n#################################\n")
-
-        # print("\n###################################\nA =",a, "and PN_KC_weight =", w,"\n#################################\n")
-        # file_results.write("### Test for A="+str(a)+" and PN_KC_weight="+str(w)+" ###\n")
-
-        # print("\n###################################\nKC threshold =", kc,"\n#################################\n")
-        # file_results.write("### Test for KC threshold ="+str(kc)+" ###\n")
+        file_results.write(str(a)+";"+str(w)+";"+str(kc)+";")
 
         correct_guesses = {}
         how_many_times_guessed = {}
 
-        for i in range(50):
+        for i in range(10):
             print("\n### Test",i,"###")
             nb_of_figures = 3
             figures = random.sample(range(1,11),nb_of_figures)
@@ -41,8 +35,7 @@ for (a,w) in [(0.5, 0.1), (0.5, 0.05), (0.5, 0.025), (0.75,0.1), (1.0,0.1), (1.0
             #     how_many_times_guessed[result] += 1
 
         print("\n\nTotal results :", len(correct_guesses), "correct guess\n",correct_guesses)
-        file_results.write("Total results : "+ str(len(correct_guesses)) + " correct guess\n")
-        file_results.write("Figures guessed correctly : ")
+        file_results.write(str(len(correct_guesses))+ ";")
         for figure in correct_guesses.values():
             file_results.write(figure+" - ")
 
@@ -53,6 +46,6 @@ for (a,w) in [(0.5, 0.1), (0.5, 0.05), (0.5, 0.025), (0.75,0.1), (1.0,0.1), (1.0
         #         max_guessed["figure"] = figure
         # print("\n\nFigure guessed the most :", max_guessed["figure"], "guessed", max_guessed["times"],"times\n",how_many_times_guessed)
 
-        file_results.write("\n\n")
+        file_results.write("\n")
 
 file_results.close()
