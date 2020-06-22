@@ -3,8 +3,8 @@ import torch
 import sys
 import numpy as np
 from bindsnet.network import Network
-from bindsnet.network.nodes import Input, CurrentLIFNodes, LIFNodes
-from bindsnet.network.topology import Connection, SparseConnection, LocalConnection
+from bindsnet.network.nodes import Input, CurrentLIFNodes
+from bindsnet.network.topology import Connection
 from bindsnet.network.monitors import Monitor
 from ThreeFactorsLearning import STDP, AllToAllConnection
 
@@ -21,14 +21,15 @@ def LM_model(
     min_weight=0.0001,
     PN_thresh=-40.0,
     KC_thresh=-25.0,
-    EN_thresh=-40.0) :
+    EN_thresh=-40.0,
+    modification=5.0  # best results with 1.0 for CurrentLIF (for LIF, 0.1) => augmented in order to encode the richess of the input
+    ) :
 
     ### parameters
-
+    
     dt = 1.0
     learning_time = 50 # milliseconds
     test_time = 50 # milliseconds
-    modification = 1.0 # best results with this modification for CurrentLIF (for LIF, 0.1)
     
     if arguments == True :
         if len(sys.argv) == 1:
