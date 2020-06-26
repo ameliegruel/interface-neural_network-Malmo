@@ -15,6 +15,7 @@ def LM_model(
     plot_parameters=False, 
     plot_results=False, 
     arguments=False, 
+    info_PN = False,
     figures=None,
     A=1.0,
     PN_KC_weight=0.25,
@@ -22,14 +23,19 @@ def LM_model(
     PN_thresh=-40.0,
     KC_thresh=-25.0,
     EN_thresh=-40.0,
-    modification=5.0  # best results with 1.0 for CurrentLIF (for LIF, 0.1) => augmented in order to encode the richess of the input
+    modification=5.0,  # best results with 1.0 for CurrentLIF (for LIF, 0.1) => augmented in order to encode the richess of the input
+    stimulation_time = 40 # milliseconds 
     ) :
 
+    begin_time = datetime.datetime.now()
+    # torch.set_default_dtype("torch.cuda.FloatTensor")
+
     ### parameters
-    
+
     dt = 1.0
     learning_time = 50 # milliseconds
     test_time = 50 # milliseconds
+    torch.cuda.set_device("cuda:0")
     
     if arguments == True :
         if len(sys.argv) == 1:
@@ -65,16 +71,15 @@ def LM_model(
 
         if i == 0:
             print(list_files[i],"=> learning")
-            input_data["Learning"] = {"Input": torch.from_numpy(modification * np.array([image for i in range(int(learning_time/dt))]))}
+            input_data["Learning"] = {"Input": torch.from_numpy(modification * np.array([image if i <= stimulation_time else np.zeros((1,10,36)) for i in range(int(learning_time/dt))]))}
         else : 
             print(list_files[i], "=> test")
-            input_data["Test"][list_files[i]] = {"Input": torch.from_numpy(modification * np.array([image for i in range(int(test_time/dt))]))}
+            input_data["Test"][list_files[i]] = {"Input": torch.from_numpy(modification * np.array([image if i <= stimulation_time else np.zeros((1,10,36)) for i in range(int(test_time/dt))]))}
 
 
     ### network initialization based on Ardin et al's article
 
     print("Initialize network")
-    begin_time = datetime.datetime.now()
 
     landmark_guidance = Network(dt=dt)
 
@@ -170,7 +175,14 @@ def LM_model(
             "EN" : EN_monitor.get("v")[-test_time:]
         }
 
-        print(name, ":  nb spikes =", len(torch.nonzero(spikes["EN"])))
+        if info_PN == True:
+            frequences = []
+            for nodes in spikes["PN"].squeeze().t():
+                frequences.append(len(torch.nonzero(nodes)))
+            frequences = torch.tensor(frequences).float()
+            print("Mean spikes PN :", torch.mean(frequences), "- Max :", torch.max(frequences), "- Min :", torch.min(frequences))
+
+        print(name, ":  nb spikes EN =", len(torch.nonzero(spikes["EN"])))
         nb_spikes.append(len(torch.nonzero(spikes["EN"]))) 
 
         if view["mean_EN"] == None or len(torch.nonzero(spikes["EN"])) < view["mean_EN"] : 
@@ -195,6 +207,7 @@ def LM_model(
     print("Most familiar view:", view["name"])
 
     plt.show(block=True)
+    print(datetime.datetime.now() - begin_time)
 
     if nb_spikes[0] == nb_spikes[1] == nb_spikes[2]:
         return (view['name'], True)
@@ -203,4 +216,4 @@ def LM_model(
 
 
 
-# LM_model(plot_parameters=False, plot_results=True, arguments=True, KC_thresh=-15, A=05.0, PN_KC_weight=0.1, EN_thresh=-20)
+# LM_model(plot_parameters=True, plot_results=True, arguments=True, KC_thresh=-13, A=0.75, PN_KC_weight=0.025, EN_thresh=-40, modification=5250)
