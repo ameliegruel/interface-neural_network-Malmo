@@ -1,8 +1,10 @@
 from abc import ABC
-from typing import Union, Optional, Sequence
+from typing import Union, Optional, Sequence, Iterable
 
 import torch
 from torch.nn import Module, Parameter
+# torch.set_default_tensor_type("torch.cuda.FloatTensor")
+
 import numpy as np
 from bindsnet.learning.learning import NoOp
 from bindsnet.network.nodes import Nodes
@@ -12,6 +14,135 @@ from bindsnet.network.topology import (
     Conv2dConnection,
     LocalConnection,
 )
+
+
+class Izhikevich(Nodes):
+    # language=rst
+    """
+    Layer of Izhikevich neurons.
+    """
+
+    def __init__(
+        self,
+        n: Optional[int] = None,
+        shape: Optional[Iterable[int]] = None,
+        traces: bool = False,
+        traces_additive: bool = False,
+        tc_trace: Union[float, torch.Tensor] = 20.0,
+        trace_scale: Union[float, torch.Tensor] = 1.0,
+        sum_input: bool = False,
+        excitatory: float = 1,
+        thresh: Union[float, torch.Tensor] = 45.0,
+        rest: Union[float, torch.Tensor] = -65.0,
+        lbound: float = None,
+        a=0.01,
+        b=0.2,
+        c=-65,
+        d=8,
+        C=4,
+        k=0.035,
+        noise_mean=0,
+        noise_std=0.05,
+        **kwargs,
+    ) -> None:
+        # language=rst
+        """
+        Instantiates a layer of Izhikevich neurons.
+
+        :param n: The number of neurons in the layer.
+        :param shape: The dimensionality of the layer.
+        :param traces: Whether to record spike traces.
+        :param traces_additive: Whether to record spike traces additively.
+        :param tc_trace: Time constant of spike trace decay.
+        :param trace_scale: Scaling factor for spike trace.
+        :param sum_input: Whether to sum all inputs.
+        :param excitatory: Percent of excitatory (vs. inhibitory) neurons in the layer; in range ``[0, 1]``.
+        :param thresh: Spike threshold voltage.
+        :param rest: Resting membrane voltage.
+        :param lbound: Lower bound of the voltage.
+        """
+        super().__init__(
+            n=n,
+            shape=shape,
+            traces=traces,
+            traces_additive=traces_additive,
+            tc_trace=tc_trace,
+            trace_scale=trace_scale,
+            sum_input=sum_input,
+        )
+
+        self.register_buffer("rest", torch.tensor(rest))  # Rest voltage.
+        self.register_buffer("thresh", torch.tensor(thresh))  # Spike threshold voltage.
+
+        # set parameters
+        self.a = a
+        self.b = b
+        self.c = torch.tensor(c).float()
+        self.d = d
+        self.C = C
+        self.k = k
+
+        self.register_buffer("v", self.rest * torch.ones(n))  # Neuron voltages.
+        self.register_buffer("u", self.b * self.v)  # Neuron recovery.
+
+        self.noise_mean = noise_mean
+        self.noise_std = noise_std
+
+        # spiking times 
+        self.t_spike = -10000*torch.ones(self.n)
+        self.t = torch.tensor(0.0)
+        
+    def forward(self, x: torch.Tensor) -> None:
+        # language=rst
+        """
+        Runs a single simulation step.
+        :param x: Inputs to the layer.
+        """
+
+        self.t += 1
+
+        # Check for spiking neurons.
+        self.s = self.v >= self.thresh
+        
+        # Voltage and recovery reset.
+        self.v = torch.where(self.s, self.c, self.v)
+        self.u = torch.where(self.s, self.u + self.d, self.u)
+        
+        # set new spike time
+        self.t_spike = torch.where(self.s, self.t, self.t_spike)
+        
+        # Add noise
+        noise = self.noise_mean + self.noise_std * torch.rand(self.n)
+
+        # Apply v and u updates.
+        self.v += self.dt * 0.5 * ((self.k * (self.v - self.rest) * (self.v - self.thresh) - self.u + x + noise) / self.C)
+        self.v += self.dt * 0.5 * ((self.k * (self.v - self.rest) * (self.v - self.thresh) - self.u + x + noise) / self.C)
+        self.u += self.dt * self.a * (self.b * (self.v - self.rest) - self.u)
+
+        super().forward(x)
+
+    def reset_state_variables(self) -> None:
+        # language=rst
+        """
+        Resets relevant state variables.
+        """
+        super().reset_state_variables()
+        self.v.fill_(self.rest)  # Neuron voltages.
+        self.u = self.b * self.v  # Neuron recovery.
+
+    def set_batch_size(self, batch_size) -> None:
+        # language=rst
+        """
+        Sets mini-batch size. Called when layer is added to a network.
+
+        :param batch_size: Mini-batch size.
+        """
+        super().set_batch_size(batch_size=batch_size)
+        self.v = self.rest * torch.ones(batch_size, *self.shape, device=self.v.device)
+        self.u = self.b * self.v
+
+
+######################################################################
 
 
 class AllToAllConnection(ABC, Module):
@@ -77,12 +208,6 @@ class AllToAllConnection(ABC, Module):
         )
 
         # Weights
-        if w is None:
-            if self.wmin == -np.inf or self.wmax == np.inf:
-                w = torch.clamp(torch.rand(source.n, target.n), self.wmin, self.wmax)
-            else:
-                w = self.wmin + torch.rand(source.n, target.n) * (self.wmax - self.wmin)
-
         self.w = Parameter(w, requires_grad=False)
         self.b = Parameter(kwargs.get("b", torch.zeros(target.n)), requires_grad=False)
 
@@ -114,14 +239,9 @@ class AllToAllConnection(ABC, Module):
         self.active_neurotransmitters += update
 
         # Get input 
-        print("V",self.target.v.shape, self.target.v)
-        print("S", self.active_neurotransmitters.shape, self.active_neurotransmitters)
         S = torch.sum(self.active_neurotransmitters.t(), dim=1, keepdim=True).view(1,-1)
-        print("S", S.shape, S)
-        output = (self.v_rev - self.target.v) * torch.max(self.w) * S
-        print("OUTPUT",output.shape, output)
-        return output
-
+        return (self.v_rev - self.target.v) * torch.max(self.w) * S
+        
     def update(self, **kwargs) -> None:
         # language=rst
         """
@@ -177,7 +297,7 @@ class STDP(ABC):
         tc_reward: float = 0.0,
         tc_minus: float = 0.0,
         tc_plus: float = 0.0,
-        threshold: float = 0.0,
+        min_weight: float = 0.0,
         **kwargs
     ) -> None:
         """
@@ -210,7 +330,7 @@ class STDP(ABC):
         self.nu = torch.tensor(nu)
 
         # Weight threshold
-        self.threshold = threshold
+        self.min_weight = min_weight
 
         # Initialize eligibility trace, time constants and reward
         if not hasattr(self.target, "eligibility_trace"):
@@ -221,7 +341,7 @@ class STDP(ABC):
         if not hasattr(self.connection, "reward_concentration"):
             self.connection.reward_concentration = torch.zeros(*self.connection.w.shape) # initialize the extracellular concentration of biogenic amine
         self.tc_reward = tc_reward
-        self.reward = 0 # nul for every t except t=40 ms
+        self.BA = 0 # nul for every t except t=40 ms
 
         # Parameter update reduction across minibatch dimension.
         if reduction is None:
@@ -244,6 +364,9 @@ class STDP(ABC):
         self.cumul_weigth = self.connection.w.t()
         self.cumul_et = self.target.eligibility_trace.t()
         self.cumul_reward = self.connection.reward_concentration.t()
+        self.cumul_pre_post = None
+        self.cumul_delta_t = None
+        self.cumul_STDP = None
 
     def update(self, **kwargs) -> None:
         """
@@ -251,10 +374,10 @@ class STDP(ABC):
         """
         if self.t == 40:
             print("reward")
-            self.reward = kwargs["reward"]   # amount of biogenic amine released 
+            self.BA = kwargs["reward"]   # amount of biogenic amine released 
                                     # NB : argument 'reward' is defined in Network() initialization, not in STDP()
         elif self.t > 40:
-            self.reward = 0
+            self.BA = 0
 
         batch_size = self.source.batch_size
 
@@ -263,9 +386,12 @@ class STDP(ABC):
 
         # Get STDP
         delta_t = pre_x - post_x
-        delta_t = torch.where(delta_t == 0, torch.tensor(-50.0), delta_t) # if delta_t == 0, STDP == 0 (interruption in the function)
-        tau = torch.where(delta_t > 0, -self.tc_plus, self.tc_minus)
+        # delta_t = self.source.t_spike - self.target.t_spike
+        # delta_t = delta_t.t()
+
+        tau = torch.where(delta_t > 0, self.tc_plus, self.tc_minus)
         nu = torch.where(delta_t > 0, self.nu[1], self.nu[0])
+        nu = torch.where(delta_t == 0, torch.tensor(0.0), nu)
         STDP = nu * torch.exp(delta_t / tau)
         
         # Update eligibility trace
@@ -275,11 +401,11 @@ class STDP(ABC):
 
         # Update reward
         update = -self.connection.reward_concentration / self.tc_reward
-        self.connection.reward_concentration += update * self.connection.dt + self.reward
+        self.connection.reward_concentration += update * self.connection.dt + self.BA
 
         # Update weight
         update = self.target.eligibility_trace * self.connection.reward_concentration * self.connection.dt
-        self.connection.w = Parameter(torch.max(torch.tensor(self.threshold), self.connection.w + update))
+        self.connection.w = Parameter(torch.max(torch.tensor(self.min_weight), self.connection.w + update))
 
         # Implement weight decay
         if self.weight_decay:
@@ -289,4 +415,15 @@ class STDP(ABC):
         self.cumul_weigth = torch.cat((self.cumul_weigth, self.connection.w.t()),0)
         self.cumul_et = torch.cat((self.cumul_et,self.target.eligibility_trace.t()),0)
         self.cumul_reward = torch.cat((self.cumul_reward, self.connection.reward_concentration.t()),0)
-        # print(self.connection.w)
+        if self.cumul_pre_post == None :
+            self.cumul_STDP = STDP.t()
+            self.cumul_pre_post = pre_post_spike_occured.t()
+            self.cumul_delta_t = delta_t.t()
+            self.cumul_KC = self.source.t_spike
+            self.cumul_EN = self.target.t_spike
+        else :
+            self.cumul_pre_post = torch.cat((self.cumul_pre_post, pre_post_spike_occured.t()),0)
+            self.cumul_STDP = torch.cat((self.cumul_STDP, STDP.t()),0)
+            self.cumul_delta_t = torch.cat((self.cumul_delta_t, delta_t.t()),0)
+            self.cumul_KC = torch.cat((self.cumul_KC, self.source.t_spike),0)
+            self.cumul_EN = torch.cat((self.cumul_EN, self.target.t_spike),0)
