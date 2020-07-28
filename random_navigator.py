@@ -10,14 +10,14 @@ import time
 import random
 import json
 from math import sqrt, cos, sin, tan, atan2, degrees, radians
-from skimage.transform import resize
+from skimage import exposure, transform
 import numpy as np
 from PIL import Image
 import datetime
 
 import torch
 from bindsnet.network import Network
-from bindsnet.network.nodes import LIFNodes, Input
+from bindsnet.network.nodes import CurrentLIFNodes, Input, LIFNodes
 from bindsnet.network.topology import Connection, LocalConnection
 from bindsnet.network.monitors import Monitor
 import matplotlib.pyplot as plt 
@@ -102,7 +102,7 @@ missionXML='''<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
                         <DrawCuboid type="air" x1="''' + str(old_div(-ArenaSide,2)) + '''" y1="''' + str(ArenaFloor) + '''" z1="''' + str(old_div(-ArenaSide,2)) + '''" x2="''' + str(old_div(ArenaSide,2)) + '''" y2="20" z2="''' + str(old_div(ArenaSide,2)) + '''"/>
                         ''' + GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor) + '''
                     </DrawingDecorator>
-                    <ServerQuitFromTimeUp timeLimitMs="250000"/>
+                    <ServerQuitFromTimeUp timeLimitMs="50000"/>
                     <ServerQuitWhenAnyAgentFinishes/>
                 </ServerHandlers>
               </ServerSection>
@@ -277,7 +277,11 @@ def getAntView(h,w,pixels):
     # resize in image of 10*36 pixels (see Ardin et al)
     ant_view = np.array(ant_view)
     ant_view.shape = (-1, w)
-    ant_view = resize(ant_view, (10,36))
+    ant_view = transform.resize(ant_view, (10,36))
+    
+    # inverse pixel values then equalize the histogram
+    ant_view = 1 - ant_view / 255
+    ant_view = exposure.equalize_adapthist(ant_view) 
 
     # normalize the image (see Ardin et al)
     sum_pixels = sqrt(np.sum(ant_view.flatten()))
@@ -348,13 +352,13 @@ def randomNavigator(movements, last_command):
 
 def initReactionNetwork():
     begin_time = datetime.datetime.now()
-    dt=0.1
+    dt=1.0
     landmark_guidance = Network(dt=dt)
 
     input_layer = Input(n=360, shape=(10,36))
-    PN = LIFNodes(n=360, w=torch.tensor(0.25))
-    KC = LIFNodes(n=20000, traces=True, w=torch.tensor(2.0))
-    EN = LIFNodes(n=1, traces=True)
+    PN = LIFNodes(n=360, w=torch.tensor(0.25), tc_decay=10.0)
+    KC = LIFNodes(n=20000, traces=True, w=torch.tensor(2.0), tc_decay=10.0)
+    EN = LIFNodes(n=1, traces=True, tc_decay=10.0)
     landmark_guidance.add_layer(layer=input_layer, name="Input")
     landmark_guidance.add_layer(layer=PN, name="PN")
     landmark_guidance.add_layer(layer=KC, name="KC")
@@ -384,11 +388,13 @@ def initReactionNetwork():
     return landmark_guidance
 
 def reactionToRandomNavigation(reaction_network, ant_view, plot_option=None, plots=None):
+    begin_time = datetime.datetime.now()
     dt = reaction_network.dt
     sim_time = 50 # milliseconds
     reaction_network.reset_state_variables()
+    print(ant_view)
     
-    input_data = {"Input": torch.from_numpy(np.array([ant_view for i in range(int(sim_time/dt))]))}
+    input_data = {"Input": torch.from_numpy(np.array([list(map(lambda x: x+np.random.normal(0,0.5), ant_view)) for i in range(int(sim_time/dt))]))}
     reaction_network.run(inputs=input_data, time=sim_time)
 
     spikes = {
@@ -409,7 +415,8 @@ def reactionToRandomNavigation(reaction_network, ant_view, plot_option=None, plo
         else :
             plots = plotReactionNetwork(spikes, voltages, plots, plot_option)
             return (spikes, voltages, plots)
-    
+    print(datetime.datetime.now() - begin_time)
+
     return (spikes, voltages)
 
 
@@ -572,9 +579,10 @@ while world_state.is_mission_running :
         ObsEnv = {"xPos": ObsJSON["XPos"], "yPos": ObsJSON["YPos"], "zPos": ObsJSON["ZPos"], "yaw": getYaw(-ObsJSON["Yaw"])}
 
         ### get ant's visions
-        ant_view = 0.01*np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
+        ant_view = np.array([getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
+        print(ant_view)
         ### launch neural network
-        (spikes, voltages) = reactionToRandomNavigation(reaction_network, ant_view)
+        # (spikes, voltages) = reactionToRandomNavigation(reaction_network, ant_view)
         # (spikes, voltages, plots) = reactionToRandomNavigation(reaction_network, ant_view, plot_option="display", plots=plots)
 
         movements = ["z","q","d"]
@@ -599,7 +607,7 @@ while world_state.is_mission_running :
 
 print("Simulation over")
 
-plotReactionNetwork(spikes, voltages, plots, option="save")
+# plotReactionNetwork(spikes, voltages, plots, option="save")
 
 print()
 print("Mission ended")
