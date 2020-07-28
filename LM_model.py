@@ -6,7 +6,7 @@ from bindsnet.network import Network
 from bindsnet.network.nodes import Input, CurrentLIFNodes
 from bindsnet.network.topology import Connection
 from bindsnet.network.monitors import Monitor
-from ThreeFactorsLearning import STDP, AllToAllConnection
+from ThreeFactorsLearning import STDP, AllToAllConnection, Izhikevich
 
 import matplotlib.pyplot as plt
 from bindsnet.analysis.plotting import plot_spikes, plot_voltages, plot_input
@@ -18,6 +18,7 @@ def LM_model(
     info_PN = False,
     figures=None,
     A=1.0,
+    BA=0.5,
     PN_KC_weight=0.25,
     min_weight=0.0001,
     PN_thresh=-40.0,
@@ -63,7 +64,7 @@ def LM_model(
         file_image = open(list_files[i], "r")
         image = []
         for l in file_image.readlines():
-            l = list(map(lambda x: 10*float(x), l.split()))
+            l = list(map(lambda x: float(x), l.split()))
             image.append(l)
         file_image.close()
         image = np.array(image)
@@ -85,9 +86,9 @@ def LM_model(
 
     # layers
     input_layer = Input(n=360, shape=(10,36))
-    PN = CurrentLIFNodes(n=360, traces=True, tc_decay=10.0, thresh=PN_thresh, rest=-60.0)
-    KC = CurrentLIFNodes(n=20000, traces=True, tc_decay=10.0, thresh=KC_thresh, rest=-85.0)
-    EN = CurrentLIFNodes(n=1, traces=True, tc_decay=10.0, thresh=EN_thresh, rest=-60.0)
+    PN = Izhikevich(n=360, traces=True, tc_decay=10.0, thresh=PN_thresh, rest=-60.0, C=100, a=0.3, b=-0.2, c=-65, d=8, k=2)
+    KC = Izhikevich(n=20000, traces=True, tc_decay=10.0, thresh=KC_thresh, rest=-85.0, C=4, a=0.01, b=-0.3, c=-65, d=8, k=0.035)
+    EN = Izhikevich(n=1, traces=True, tc_decay=10.0, thresh=EN_thresh, rest=-60.0, C=100, a=0.3, b=-0.2, c=-65, d=8, k=2)
     landmark_guidance.add_layer(layer=input_layer, name="Input")
     landmark_guidance.add_layer(layer=PN, name="PN")
     landmark_guidance.add_layer(layer=KC, name="KC")
@@ -102,6 +103,9 @@ def LM_model(
     PN_KC = AllToAllConnection(source=PN, target=KC, w=connection_weight.t(), tc_synaptic=3.0, phi=0.93)
 
     KC_EN = AllToAllConnection(source=KC, target=EN, w=torch.ones(KC.n, EN.n)*2.0, tc_synaptic=8.0, phi=8.0)
+    print()
+    print(KC_EN.w)
+    print()
     landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
     landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
     landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
@@ -126,8 +130,12 @@ def LM_model(
     print("Run - learning view")
 
     landmark_guidance.learning = True
-    landmark_guidance.run(inputs=input_data["Learning"], time=learning_time, reward=0.5)
+    landmark_guidance.run(inputs=input_data["Learning"], time=learning_time, reward=BA)
     landmark_guidance.learning = False
+
+    print()
+    print(KC_EN.w)
+    print()
 
     print("> View learned")
 
@@ -142,9 +150,18 @@ def LM_model(
         plt.title("Evolution of KC_EN eligibility traces for A="+str(A)+" and thresh="+str(min_weight))
         # plt.savefig("./manual_tuning/eligibility_nu"+str(A)+"_thresh"+str(min_weight)+".png")
 
-        # plt.figure()
-        # plt.plot(range(learning_time+1), torch.tensor(PN_KC.cumul_weight))
-        # plt.title("Evolution of PN_KC weights")
+        plt.figure()
+        plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_pre_post))
+        plt.title("Evolution of pre_post")
+
+        plt.figure()
+        # plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_delta_t), "b", range(learning_time), torch.tensor(KC_EN.update_rule.cumul_KC), "r", range(learning_time), torch.tensor(KC_EN.update_rule.cumul_EN), "g")
+        plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_delta_t))
+        plt.title("Evolution of delta_t")
+
+        plt.figure()
+        plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_STDP))
+        plt.title("Evolution of STDP")
 
         plt.figure()
         plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_reward))
@@ -196,11 +213,11 @@ def LM_model(
             Pspikes[1][2].set_ylim(bottom=0, top=KC.n)
             plt.suptitle("Results for " + name)
 
-            Pvoltages = plot_voltages(voltages, plot_type="line")
-            for v_subplot in Pvoltages[1]:
-                v_subplot.set_xlim(left=0, right=test_time)
-            Pvoltages[1][2].set_ylim(bottom=min(-70, min(voltages["EN"])), top=max(-50, max(voltages["EN"])))
-            plt.suptitle("Results for " + name)
+            # Pvoltages = plot_voltages(voltages, plot_type="line")
+            # for v_subplot in Pvoltages[1]:
+            #     v_subplot.set_xlim(left=0, right=test_time)
+            # Pvoltages[1][2].set_ylim(bottom=min(-70, min(voltages["EN"])), top=max(-50, max(voltages["EN"])))
+            # plt.suptitle("Results for " + name)
 
             plt.show(block=False)
 
@@ -216,4 +233,4 @@ def LM_model(
 
 
 
-# LM_model(plot_parameters=True, plot_results=True, arguments=True, KC_thresh=-13, A=0.75, PN_KC_weight=0.025, EN_thresh=-40, modification=5250)
+LM_model(plot_parameters=True, plot_results=True, arguments=True, KC_thresh=-25, A=1.0, PN_KC_weight=0.25, modification=5250.0, min_weight=0.0001, BA=0.5)
