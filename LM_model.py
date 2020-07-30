@@ -29,14 +29,12 @@ def LM_model(
     ) :
 
     begin_time = datetime.datetime.now()
-    # torch.set_default_dtype("torch.cuda.FloatTensor")
 
     ### parameters
 
     dt = 1.0
     learning_time = 50 # milliseconds
     test_time = 50 # milliseconds
-    torch.cuda.set_device("cuda:0")
     
     if arguments == True :
         if len(sys.argv) == 1:
@@ -155,8 +153,8 @@ def LM_model(
         plt.title("Evolution of pre_post")
 
         plt.figure()
-        # plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_delta_t), "b", range(learning_time), torch.tensor(KC_EN.update_rule.cumul_KC), "r", range(learning_time), torch.tensor(KC_EN.update_rule.cumul_EN), "g")
-        plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_delta_t))
+        plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_delta_t), "b", range(learning_time), torch.tensor(KC_EN.update_rule.cumul_KC), "r", range(learning_time), torch.tensor(KC_EN.update_rule.cumul_EN), "g")
+        # plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_delta_t))
         plt.title("Evolution of delta_t")
 
         plt.figure()
@@ -166,6 +164,15 @@ def LM_model(
         plt.figure()
         plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_reward))
         plt.title("Evolution of KC_EN reward concentrations")
+
+        plt.figure()
+        plt.plot(range(learning_time), torch.tensor(PN_KC.cumul_I))
+        plt.title("Evolution of I KC")
+
+        plt.figure()
+        plt.plot(range(learning_time), torch.tensor(KC_EN.cumul_I))
+        plt.xlim(left=0, right=learning_time)
+        plt.title("Evolution of I EN")
 
         plt.show(block=False)
 
@@ -181,7 +188,6 @@ def LM_model(
         landmark_guidance.run(inputs=data, time=test_time)
 
         spikes = {
-            "Input" : input_monitor.get("s")[-test_time:],
             "PN" : PN_monitor.get("s")[-test_time:],
             "KC" : KC_monitor.get("s")[-test_time:],
             "EN" : EN_monitor.get("s")[-test_time:]
@@ -233,4 +239,4 @@ def LM_model(
 
 
 
-LM_model(plot_parameters=True, plot_results=True, arguments=True, KC_thresh=-25, A=1.0, PN_KC_weight=0.25, modification=5250.0, min_weight=0.0001, BA=0.5)
+LM_model(plot_parameters=True, plot_results=False, arguments=True, KC_thresh=-25, A=1.0, PN_KC_weight=0.25, modification=5250.0, min_weight=0.0001, BA=0.5)
