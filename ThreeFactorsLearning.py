@@ -217,6 +217,8 @@ class AllToAllConnection(ABC, Module):
         self.phi = phi
         self.v_rev = 0
 
+        self.cumul_I = None
+
     # Get dirac(delta_t)
     def get_dirac(self) : 
         pre_s  = self.source.s.view(-1).unsqueeze(1)
@@ -381,15 +383,11 @@ class STDP(ABC):
 
         batch_size = self.source.batch_size
 
-        pre_x = self.source.x.view(-1).unsqueeze(1)
-        post_x = self.target.x.view(-1).unsqueeze(1)
-
         # Get STDP
-        delta_t = pre_x - post_x
-        # delta_t = self.source.t_spike - self.target.t_spike
-        # delta_t = delta_t.t()
+        delta_t = self.source.t_spike - self.target.t_spike
+        delta_t = delta_t.t()
 
-        tau = torch.where(delta_t > 0, self.tc_plus, self.tc_minus)
+        tau = torch.where(delta_t > 0, -self.tc_plus, self.tc_minus)
         nu = torch.where(delta_t > 0, self.nu[1], self.nu[0])
         nu = torch.where(delta_t == 0, torch.tensor(0.0), nu)
         STDP = nu * torch.exp(delta_t / tau)
