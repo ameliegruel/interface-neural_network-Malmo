@@ -69,9 +69,6 @@ connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice
 PN_KC = AllToAllConnection(source=PN, target=KC, w=connection_weight.t(), tc_synaptic=3.0, phi=0.93)
 
 KC_EN = AllToAllConnection(source=KC, target=EN, w=torch.ones(KC.n, EN.n)*2.0, tc_synaptic=8.0, phi=8.0)
-print()
-print(KC_EN.w)
-print()
 landmark_guidance.add_connection(connection=input_PN, source="Input", target="PN")
 landmark_guidance.add_connection(connection=PN_KC, source="PN", target="KC")
 landmark_guidance.add_connection(connection=KC_EN, source="KC", target="EN")
@@ -103,10 +100,6 @@ for phase in [1,2,3]:
 
     landmark_guidance.run(inputs=input_data, time=time, reward=BA)
 
-    print()
-    print(KC_EN.w)
-    print()
-
     plt.ioff()
     
     spikes = {
@@ -124,8 +117,55 @@ for phase in [1,2,3]:
     for subplot in Pspikes[1]:
         subplot.set_xlim(left=0,right=time)
     Pspikes[1][1].set_ylim(bottom=0, top=KC.n)
-    plt.title("Phase "+str(phase)+" - "+sys.argv[1])
+    plt.suptitle("Phase "+str(phase)+" - "+sys.argv[1])
     plt.tight_layout()
+
+    Pvoltages = plot_voltages(voltages, plot_type="line")
+    for v_subplot in Pvoltages[1]:
+        v_subplot.set_xlim(left=0, right=time)
+    Pvoltages[1][2].set_ylim(bottom=min(-70, min(voltages["EN"]))-1, top=max(-50, max(voltages["EN"])+1))
+    plt.suptitle("Phase "+str(phase)+" - "+sys.argv[1])
+
+
+########## Graphe dispersion de la couche KC
+
+for nb_KC in range(KC.n):
+    if KC_monitor.get("s").squeeze(1).t()[nb_KC].nonzero().size() != (0,1):
+        print("Neurone KC activé :", nb_KC) 
+        KC_index = nb_KC    # récupère l'index d'un neurone KC qui s'active au cours de la simulation (au moins un spike)
+        break
+
+nb_neurones_PN = 3    # 3 neurones PN sélectionnés, reliés à un neurone KC qui s'active au cours de la simulation
+PN_index = PN_KC.w.t()[KC_index].nonzero().squeeze(1)[:nb_neurones_PN]  
+PN_evo_v = PN_monitor.get("v").squeeze(1).t()[PN_index]
+KC_evo_v = KC_monitor.get("v").squeeze(1).t()[KC_index]
+
+plt.figure()
+plt.suptitle("Evolution du potentiel de membrane et spikes de 3 neurones PN reliés à 1 neurone KC - phase "+str(phase))
+plt.subplot(2,2,1)
+plt.plot(range(time), PN_evo_v.t())
+plt.xlim(left=0, right=time)
+plt.ylabel("Neurones PN")
+
+plt.subplot(2,2,3)
+plt.plot(range(time), KC_evo_v)
+plt.xlim(left=0, right=time)
+plt.ylabel("Neurone KC")
+plt.xlabel("Temps (ms)")
+
+PN_evo_s = PN_monitor.get("s").squeeze(1).t()[PN_index]
+KC_evo_s = KC_monitor.get("s").squeeze(1).t()[KC_index]
+
+plt.subplot(2,2,2)
+plt.scatter(x=PN_evo_s.nonzero().t()[1], y=PN_evo_s.nonzero().t()[0]+1, s=1)
+plt.xlim(left=0, right=time)
+plt.ylim(top=PN_evo_s.size()[0]+1, bottom=0)
+
+plt.subplot(2,2,4)
+plt.scatter(x=KC_evo_s.nonzero(), y=1, s=1)
+plt.xlim(left=0, right=time)
+plt.ylim(top=2, bottom=0)
+plt.xlabel("Temps (ms)")
 
 plt.figure()
 plt.plot(range(time+1), torch.tensor(KC_EN.update_rule.cumul_weigth))
