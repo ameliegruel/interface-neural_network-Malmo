@@ -112,7 +112,7 @@ class Izhikevich(Nodes):
         self.t_spike = torch.where(self.s, self.t, self.t_spike)
         
         # Add noise
-        noise = self.noise_mean + self.noise_std * torch.rand(self.n)
+        noise = self.noise_mean + self.noise_std * torch.normal(0,1,([self.n]))
 
         # Apply v and u updates.
         self.v += self.dt * 0.5 * ((self.k * (self.v - self.rest) * (self.v - self.thresh) - self.u + x + noise) / self.C)
