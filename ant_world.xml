@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<Mission xmlns:h="http://ProjectMalmo.microsoft.com" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+<About>
+    <Summary>Interface</Summary>
+</About>
+
+<ServerSection>
+    <ServerInitialConditions>
+        <Time>
+            <StartTime>1000</StartTime>
+            <AllowPassageOfTime>false</AllowPassageOfTime>
+        </Time>
+        <Weather>clear</Weather>
+    </ServerInitialConditions>
+    <ServerHandlers>
+        <FlatWorldGenerator generatorString="3;1,12*35:5;2;"/>
+        <DrawingDecorator>
+            <DrawCuboid type="air" x1="-500" y1="2" z1="-500" x2="500" y2="20" z2="500"/>
+            <!-- ''' + GenRandomObject(xPos, zPos, ArenaSide, ArenaFloor) + ''' -->
+        </DrawingDecorator>
+        <!-- <ServerQuitFromTimeUp timeLimitMs="3600000"/> -->
+        <ServerQuitWhenAnyAgentFinishes/>
+    </ServerHandlers>
+</ServerSection>
+
+<AgentSection mode="Survival">
+    <Name>AntNavigationWorld</Name>
+    <AgentStart>
+        <Placement x="0" y="2" z="0" yaw="0"/>
+    </AgentStart>
+    <AgentHandlers>
+        <ChatCommands/>
+        <ObservationFromFullStats/>
+        <ObservationFromGrid>
+            <Grid name="FrontEnv21x21">
+                <min x="-10" y="0" z="-10"/>
+                <max x="10" y="0" z="10"/>
+            </Grid>
+            <Grid name="PheromonesTrace">
+                <min x="-2" y="-1" z="-2"/>
+                <max x="2" y="-1" z="2"/>
+            </Grid>
+            <Grid name="Obstacles">
+                <min x="-1" y="0" z="-1"/>
+                <max x="1" y="0" z="1"/>
+            </Grid>
+        </ObservationFromGrid>
+        <RewardForTouchingBlockType>
+            <Block reward="+100.0" type="diamond_block" behaviour="constant"/>
+            <Block reward="-100.0" type="emerald_block" behaviour="constant"/>
+        </RewardForTouchingBlockType>
+        <ContinuousMovementCommands turnSpeedDegs="180"/>
+        <InventoryCommands/>
+        <VideoProducer want_depth="true">
+            <Width>800</Width>
+            <Height>600</Height>
+        </VideoProducer>
+    </AgentHandlers>
+</AgentSection>
+</Mission>
