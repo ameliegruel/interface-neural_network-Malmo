@@ -6,7 +6,7 @@ from bindsnet.network import Network
 from bindsnet.network.nodes import Input, CurrentLIFNodes, LIFNodes, IzhikevichNodes
 from bindsnet.network.topology import Connection, SparseConnection, LocalConnection
 from bindsnet.network.monitors import Monitor
-from ThreeFactorsLearning import STDP, AllToAllConnection, Izhikevich
+from AntLearning import STDP, AllToAllConnection, Izhikevich
 
 import matplotlib.pyplot as plt
 from bindsnet.analysis.plotting import plot_spikes, plot_voltages, plot_input
@@ -101,74 +101,101 @@ for phase in [1,2,3]:
     landmark_guidance.run(inputs=input_data, time=time, reward=BA)
 
     plt.ioff()
-    
-    spikes = {
-        "PN" : PN_monitor.get("s")[-time:],
-        "KC" : KC_monitor.get("s")[-time:],
-        "EN" : EN_monitor.get("s")[-time:]
-    }
-    voltages = {
-        "PN" : PN_monitor.get("v")[-time:],
-        "KC" : KC_monitor.get("v")[-time:],
-        "EN" : EN_monitor.get("v")[-time:]
-    }
+    if phase == 1 :    
+        spikes = {
+            "PN" : PN_monitor.get("s")[-time:],
+            "KC" : KC_monitor.get("s")[-time:],
+            "EN" : EN_monitor.get("s")[-time:]
+        }
+        voltages = {
+            "PN" : PN_monitor.get("v")[-time:],
+            "KC" : KC_monitor.get("v")[-time:],
+            "EN" : EN_monitor.get("v")[-time:]
+        }
+    else :
+        spikes["PN"] = torch.cat((spikes["PN"], PN_monitor.get("s")[-time:]),0)
+        spikes["KC"] = torch.cat((spikes["KC"], KC_monitor.get("s")[-time:]),0)
+        spikes["EN"] = torch.cat((spikes["EN"], EN_monitor.get("s")[-time:]),0)
+        voltages["PN"] = torch.cat((voltages["PN"], PN_monitor.get("v")[-time:]),0)
+        voltages["KC"] = torch.cat((voltages["KC"], KC_monitor.get("v")[-time:]),0)
+        voltages["EN"] = torch.cat((voltages["EN"], EN_monitor.get("v")[-time:]),0)
 
-    Pspikes = plot_spikes(spikes)
-    for subplot in Pspikes[1]:
-        subplot.set_xlim(left=0,right=time)
-    Pspikes[1][1].set_ylim(bottom=0, top=KC.n)
-    plt.suptitle("Phase "+str(phase)+" - "+sys.argv[1])
-    plt.tight_layout()
+Pspikes = plot_spikes(spikes)
+for subplot in Pspikes[1]:
+    subplot.set_xlim(left=0,right=time*3)
+Pspikes[1][1].set_ylim(bottom=0, top=KC.n)
+plt.suptitle("Phase "+str(phase)+" - "+sys.argv[1])
+plt.tight_layout()
 
-    Pvoltages = plot_voltages(voltages, plot_type="line")
-    for v_subplot in Pvoltages[1]:
-        v_subplot.set_xlim(left=0, right=time)
-    Pvoltages[1][2].set_ylim(bottom=min(-70, min(voltages["EN"]))-1, top=max(-50, max(voltages["EN"])+1))
-    plt.suptitle("Phase "+str(phase)+" - "+sys.argv[1])
+Pvoltages = plot_voltages(voltages, plot_type="line")
+for v_subplot in Pvoltages[1]:
+    v_subplot.set_xlim(left=0, right=time*3)
+Pvoltages[1][2].set_ylim(bottom=min(-70, min(voltages["EN"]))-1, top=max(-50, max(voltages["EN"])+1))
+plt.suptitle("Phase "+str(phase)+" - "+sys.argv[1])
 
 
 ########## Graphe dispersion de la couche KC
 
-for nb_KC in range(KC.n):
-    if KC_monitor.get("s").squeeze(1).t()[nb_KC].nonzero().size() != (0,1):
-        print("Neurone KC activé :", nb_KC) 
-        KC_index = nb_KC    # récupère l'index d'un neurone KC qui s'active au cours de la simulation (au moins un spike)
-        break
+# for nb_KC in range(KC.n):
+#     if KC_monitor.get("s").squeeze(1).t()[nb_KC].nonzero().size() != (0,1):
+#         print("Neurone KC activé :", nb_KC) 
+#         KC_index = nb_KC    # récupère l'index d'un neurone KC qui s'active au cours de la simulation (au moins un spike)
+#         break
+# KC_index = 0
 
-nb_neurones_PN = 3    # 3 neurones PN sélectionnés, reliés à un neurone KC qui s'active au cours de la simulation
-PN_index = PN_KC.w.t()[KC_index].nonzero().squeeze(1)[:nb_neurones_PN]  
-PN_evo_v = PN_monitor.get("v").squeeze(1).t()[PN_index]
-KC_evo_v = KC_monitor.get("v").squeeze(1).t()[KC_index]
+# nb_neurones_PN = 10    # 3 neurones PN sélectionnés, reliés à un neurone KC qui s'active au cours de la simulation
+# PN_index = PN_KC.w.t()[KC_index].nonzero().squeeze(1)[:nb_neurones_PN]
+# PN_evo_v = voltages["PN"].squeeze(1).t()[PN_index]
+# KC_evo_v = voltages["KC"].squeeze(1).t()[KC_index]
 
-plt.figure()
-plt.suptitle("Evolution du potentiel de membrane et spikes de 3 neurones PN reliés à 1 neurone KC - phase "+str(phase))
-plt.subplot(2,2,1)
-plt.plot(range(time), PN_evo_v.t())
-plt.xlim(left=0, right=time)
-plt.ylabel("Neurones PN")
+# print(PN_evo_v.t().size())
 
-plt.subplot(2,2,3)
-plt.plot(range(time), KC_evo_v)
-plt.xlim(left=0, right=time)
-plt.ylabel("Neurone KC")
-plt.xlabel("Temps (ms)")
+# plt.figure()
+# plt.suptitle("Evolution du potentiel de membrane et spikes de 3 neurones PN reliés à 1 neurone KC - phase "+str(phase))
+# plt.subplot(2,2,1)
+# plt.plot(range(time*3), PN_evo_v.t())
+# plt.xlim(left=0, right=time*3)
+# plt.ylabel("Neurones PN")
 
-PN_evo_s = PN_monitor.get("s").squeeze(1).t()[PN_index]
-KC_evo_s = KC_monitor.get("s").squeeze(1).t()[KC_index]
+# plt.subplot(2,2,3)
+# plt.plot(range(time*3), KC_evo_v)
+# plt.xlim(left=0, right=time*3)
+# plt.ylabel("Neurone KC")
+# plt.xlabel("Temps (ms)")
 
-plt.subplot(2,2,2)
-plt.scatter(x=PN_evo_s.nonzero().t()[1], y=PN_evo_s.nonzero().t()[0]+1, s=1)
-plt.xlim(left=0, right=time)
-plt.ylim(top=PN_evo_s.size()[0]+1, bottom=0)
+# PN_evo_s = spikes["PN"].squeeze(1).t()[PN_index]
+# KC_evo_s = spikes["KC"].squeeze(1).t()[KC_index]
 
-plt.subplot(2,2,4)
-plt.scatter(x=KC_evo_s.nonzero(), y=1, s=1)
-plt.xlim(left=0, right=time)
-plt.ylim(top=2, bottom=0)
-plt.xlabel("Temps (ms)")
+# plt.subplot(2,2,2)
+# plt.scatter(x=PN_evo_s.nonzero().t()[1], y=PN_evo_s.nonzero().t()[0]+1, s=1)
+# plt.xlim(left=0, right=time*3)
+# plt.ylim(top=PN_evo_s.size()[0]+1, bottom=0)
+
+# plt.subplot(2,2,4)
+# if KC_evo_s.nonzero().size() != (0,1):
+#     plt.scatter(x=KC_evo_s.nonzero(), y=1, s=1)
+# plt.xlim(left=0, right=time*3)
+# plt.ylim(top=2, bottom=0)
+# plt.xlabel("Temps (ms)")
+
+
+## Plot parameters
 
 plt.figure()
 plt.plot(range(time+1), torch.tensor(KC_EN.update_rule.cumul_weigth))
 plt.title("Evolution of KC_EN weights")
+
+plt.figure()
+plt.plot(range(time*3+1), torch.tensor(KC_EN.cumul_et))
+plt.title("Evolution of KC_EN eligibility trace")
+
+plt.figure()
+plt.plot(range(time*3), torch.tensor(PN_KC.cumul_I))
+plt.title("Evolution of I KC")
+
+plt.figure()
+plt.plot(range(time*3), torch.tensor(KC_EN.cumul_I))
+plt.xlim(left=0, right=time*3)
+plt.title("Evolution of I EN")
 
 plt.show(block=True)

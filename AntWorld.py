@@ -21,7 +21,7 @@ from bindsnet.network import Network
 from bindsnet.network.nodes import Input
 from bindsnet.network.topology import Connection
 from bindsnet.network.monitors import Monitor
-from ThreeFactorsLearning import STDP, AllToAllConnection, Izhikevich
+from AntLearning import STDP, AllToAllConnection, Izhikevich
 import matplotlib.pyplot as plt 
 from bindsnet.analysis.plotting import plot_voltages, plot_spikes
 

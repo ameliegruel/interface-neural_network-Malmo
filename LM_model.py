@@ -6,7 +6,7 @@ from bindsnet.network import Network
 from bindsnet.network.nodes import Input, CurrentLIFNodes
 from bindsnet.network.topology import Connection
 from bindsnet.network.monitors import Monitor
-from ThreeFactorsLearning import STDP, AllToAllConnection, Izhikevich
+from AntLearning import STDP, AllToAllConnection, Izhikevich
 
 import matplotlib.pyplot as plt
 from bindsnet.analysis.plotting import plot_spikes, plot_voltages, plot_input
@@ -149,10 +149,6 @@ def LM_model(
         # plt.savefig("./manual_tuning/eligibility_nu"+str(A)+"_thresh"+str(min_weight)+".png")
 
         plt.figure()
-        plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_pre_post))
-        plt.title("Evolution of pre_post")
-
-        plt.figure()
         plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_delta_t), "b", range(learning_time), torch.tensor(KC_EN.update_rule.cumul_KC), "r", range(learning_time), torch.tensor(KC_EN.update_rule.cumul_EN), "g")
         # plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_delta_t))
         plt.title("Evolution of delta_t")
@@ -162,8 +158,8 @@ def LM_model(
         plt.title("Evolution of STDP")
 
         plt.figure()
-        plt.plot(range(learning_time+1), torch.tensor(KC_EN.update_rule.cumul_reward))
-        plt.title("Evolution of KC_EN reward concentrations")
+        plt.plot(range(learning_time), torch.tensor(KC_EN.update_rule.cumul_pre_post))
+        plt.title("Evolution of pre_post_spikes")
 
         plt.figure()
         plt.plot(range(learning_time), torch.tensor(PN_KC.cumul_I))
@@ -216,7 +212,7 @@ def LM_model(
             Pspikes = plot_spikes(spikes)
             for subplot in Pspikes[1]:
                 subplot.set_xlim(left=0,right=test_time)
-            Pspikes[1][2].set_ylim(bottom=0, top=KC.n)
+            Pspikes[1][1].set_ylim(bottom=0, top=KC.n)
             plt.suptitle("Results for " + name)
 
             # Pvoltages = plot_voltages(voltages, plot_type="line")
@@ -239,4 +235,4 @@ def LM_model(
 
 
 
-LM_model(plot_parameters=True, plot_results=False, arguments=True, KC_thresh=-25, A=1.0, PN_KC_weight=0.25, modification=5250.0, min_weight=0.0001, BA=0.5)
+LM_model(plot_parameters=True, plot_results=True, arguments=True, KC_thresh=-25, A=1.0, PN_KC_weight=0.25, modification=5250.0, min_weight=0.0001, BA=0.5)
