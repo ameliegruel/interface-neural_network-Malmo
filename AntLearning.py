@@ -257,7 +257,7 @@ class AllToAllConnection(ABC, Module):
         :param bool learning: Whether to allow connection updates.
         :param ByteTensor mask: Boolean mask determining which weights to clamp to zero.
         """
-        learning = kwargs.get("learning", True)
+        learning = kwargs["learning"]
 
         self.cumul_weigth = torch.cat((self.cumul_weigth, self.w.t()),0)
         self.cumul_et = torch.cat((self.cumul_et,self.target.eligibility_trace.t()),0)
@@ -324,6 +324,7 @@ class STDP(ABC):
         self.source = connection.source
         self.target = connection.target
         self.t = 0 # time in ms, number of updates
+        self.n_timesteps = kwargs.get("n_timesteps", 50)  # get the total number of time steps (equal to time/dt) and set a default n_timesteps = 50
 
         self.wmin = connection.wmin
         self.wmax = connection.wmax
@@ -410,7 +411,14 @@ class STDP(ABC):
         if self.weight_decay:
             self.connection.w -= self.weight_decay * self.connection.w
 
-        self.t += 1
+        print(kwargs.keys())
+        print(self.t)
+        if self.t < self.n_timesteps: 
+            self.t += 1
+        else : 
+            self.t = 0
+
+
         self.cumul_weigth = torch.cat((self.cumul_weigth, self.connection.w.t()),0)
         self.cumul_et = torch.cat((self.cumul_et,self.target.eligibility_trace.t()),0)
         self.cumul_reward = torch.cat((self.cumul_reward, self.connection.reward_concentration.t()),0)
