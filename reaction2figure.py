@@ -98,7 +98,7 @@ for phase in [1,2,3]:
     else : 
         landmark_guidance.learning = False
 
-    landmark_guidance.run(inputs=input_data, time=time, reward=BA)
+    landmark_guidance.run(inputs=input_data, time=time, reward=BA, n_timesteps=time/dt)
 
     plt.ioff()
     if phase == 1 :    

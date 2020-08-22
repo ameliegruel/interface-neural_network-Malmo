@@ -464,7 +464,7 @@ def reactionToRandomNavigation(
     elif phase == "learning":
         reaction_network.learning = True
     
-    reaction_network.run(inputs=input_data, time=simulation_time, reward=BA)
+    reaction_network.run(inputs=input_data, time=simulation_time, reward=BA, n_timesteps=simulation_time/dt)
 
     spikes = {
         "PN" : reaction_network.monitors["PN monitor"].get("s"),

@@ -128,7 +128,7 @@ def LM_model(
     print("Run - learning view")
 
     landmark_guidance.learning = True
-    landmark_guidance.run(inputs=input_data["Learning"], time=learning_time, reward=BA)
+    landmark_guidance.run(inputs=input_data["Learning"], time=learning_time, reward=BA, n_timesteps=test_time/dt)
     landmark_guidance.learning = False
 
     print()
@@ -181,7 +181,7 @@ def LM_model(
     plt.ioff()
     for (name, data) in input_data["Test"].items():
         landmark_guidance.reset_state_variables()
-        landmark_guidance.run(inputs=data, time=test_time)
+        landmark_guidance.run(inputs=data, time=test_time, n_timesteps=test_time/dt)
 
         spikes = {
             "PN" : PN_monitor.get("s")[-test_time:],

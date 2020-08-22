@@ -572,7 +572,7 @@ class AutonomousAgent():
         elif phase == "learning":
             self.landmark_guidance.learning = True
 
-        self.landmark_guidance.run(inputs=input_data, time=simulation_time, reward=BA)
+        self.landmark_guidance.run(inputs=input_data, time=simulation_time, reward=BA, n_timesteps=simulation_time/dt)
 
         self.spikes = {
             "PN" : self.landmark_guidance.monitors["PN monitor"].get("s"),
