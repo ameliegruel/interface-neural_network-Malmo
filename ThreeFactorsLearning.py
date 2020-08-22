@@ -83,15 +83,15 @@ class Izhikevich(Nodes):
         self.k = k
 
         self.register_buffer("v", self.rest * torch.ones(n))  # Neuron voltages.
-        self.register_buffer("u", self.b * self.v)  # Neuron recovery.
+        self.register_buffer("u", torch.zeros(n))  # Neuron recovery.
 
         self.noise_mean = noise_mean
         self.noise_std = noise_std
 
-        # spiking times 
+        # spiking times
         self.t_spike = -10000*torch.ones(self.n)
         self.t = torch.tensor(0.0)
-        
+
     def forward(self, x: torch.Tensor) -> None:
         # language=rst
         """
@@ -103,14 +103,14 @@ class Izhikevich(Nodes):
 
         # Check for spiking neurons.
         self.s = self.v >= self.thresh
-        
+
         # Voltage and recovery reset.
         self.v = torch.where(self.s, self.c, self.v)
         self.u = torch.where(self.s, self.u + self.d, self.u)
-        
+
         # set new spike time
         self.t_spike = torch.where(self.s, self.t, self.t_spike)
-        
+
         # Add noise
         noise = self.noise_mean + self.noise_std * torch.normal(0,1,([self.n]))
 
@@ -146,7 +146,7 @@ class Izhikevich(Nodes):
 
 
 class AllToAllConnection(ABC, Module):
-    
+
     def __init__(
         self,
         source: Nodes,
@@ -155,7 +155,6 @@ class AllToAllConnection(ABC, Module):
         tc_synaptic: float = 0.0,
         phi: float = 0.0,
         nu: Optional[Union[float, Sequence[float]]] = None,
-        reduction: Optional[callable] = None,
         weight_decay: float = 0.0,
         **kwargs
     ) -> None:
@@ -163,8 +162,6 @@ class AllToAllConnection(ABC, Module):
         :param source: A layer of nodes from which the connection originates.
         :param target: A layer of nodes to which the connection connects.
         :param nu: Learning rate for both pre- and post-synaptic events.
-        :param reduction: Method for reducing parameter updates along the minibatch
-            dimension.
         :param weight_decay: Constant multiple to decay weights by on each iteration.
 
         Keyword arguments:
@@ -177,8 +174,8 @@ class AllToAllConnection(ABC, Module):
         :param float wmax: The maximum value on the connection weights.
         :param float norm: Total weight per target neuron normalization.
         """
-        super().__init__() # initialisation of Module 
-        
+        super().__init__() # initialisation of Module
+
         assert isinstance(source, Nodes), "Source is not a Nodes object"
         assert isinstance(target, Nodes), "Target is not a Nodes object"
 
@@ -187,14 +184,12 @@ class AllToAllConnection(ABC, Module):
 
         self.nu = nu
         self.weight_decay = weight_decay
-        self.reduction = reduction
-
+        
         self.update_rule = kwargs.get("update_rule", NoOp)
         self.wmin = kwargs.get("wmin", -np.inf)
         self.wmax = kwargs.get("wmax", np.inf)
         self.norm = kwargs.get("norm", None)
-        self.decay = kwargs.get("decay", None)
-
+        
         # Learning rule
         if self.update_rule is None:
             self.update_rule = NoOp
@@ -202,7 +197,6 @@ class AllToAllConnection(ABC, Module):
         self.update_rule = self.update_rule(
             connection=self,
             nu=nu,
-            reduction=reduction,
             weight_decay=weight_decay,
             **kwargs
         )
@@ -218,6 +212,10 @@ class AllToAllConnection(ABC, Module):
         self.v_rev = 0
 
         self.cumul_I = None
+        self.cumul_weigth = self.w.t()
+        if not hasattr(self.target, "eligibility_trace"):
+            self.target.eligibility_trace = torch.zeros(*self.w.shape)
+        self.cumul_et = self.target.eligibility_trace.t()
 
     # Get dirac(delta_t)
     def get_dirac(self) : 
@@ -240,10 +238,15 @@ class AllToAllConnection(ABC, Module):
         update = torch.where(self.w != 0, update, torch.tensor(0.))
         self.active_neurotransmitters += update
 
-        # Get input 
+        # Get input
         S = torch.sum(self.active_neurotransmitters.t(), dim=1, keepdim=True).view(1,-1)
         return (self.v_rev - self.target.v) * torch.max(self.w) * S
-        
+        # if self.cumul_I == None:
+        #     self.cumul_I = I
+        # else :
+        #     self.cumul_I = torch.cat((self.cumul_I, I),0)
+        # return I
+
     def update(self, **kwargs) -> None:
         # language=rst
         """
@@ -256,13 +259,16 @@ class AllToAllConnection(ABC, Module):
         """
         learning = kwargs.get("learning", True)
 
+        self.cumul_weigth = torch.cat((self.cumul_weigth, self.w.t()),0)
+        self.cumul_et = torch.cat((self.cumul_et,self.target.eligibility_trace.t()),0)
+
         if learning:
             self.update_rule.update(**kwargs)
 
         mask = kwargs.get("mask", None)
         if mask is not None:
             self.w.masked_fill_(mask, 0)
-    
+
     def normalize(self) -> None:
         """
         Normalize weights so each target neuron has sum of connection weights equal to
@@ -278,7 +284,7 @@ class AllToAllConnection(ABC, Module):
         Contains resetting logic for the connection.
         """
         pass
-    
+
 
 ######################################################
 
@@ -286,17 +292,17 @@ class AllToAllConnection(ABC, Module):
 class STDP(ABC):
     # language=rst
     """
-    Three factors learning rule : 1) STDP with eligibility trace  2) dopamine reward  3) weight threshold leading to learning interruption 
+    Three factors learning rule : 1) STDP with eligibility trace  2) dopamine reward  3) weight threshold leading to learning interruption
     """
 
     def __init__(
         self,
-        connection: AbstractConnection,
+        connection: AllToAllConnection,
         nu: Optional[Union[float, Sequence[float]]] = None,
-        reduction: Optional[callable] = None,
         weight_decay: float = 0.0,
         tc_eligibility_trace: float = 0.0,
         tc_reward: float = 0.0,
+        reward: float = 0.0,
         tc_minus: float = 0.0,
         tc_plus: float = 0.0,
         min_weight: float = 0.0,
@@ -307,7 +313,6 @@ class STDP(ABC):
 
         :param connection: An ``AbstractConnection`` object whose weights the ``PostPre`` learning rule will modify.
         :param nu: Single or pair of learning rates for pre- and post-synaptic events ().
-        :param reduction: Method for reducing parameter updates along the batch dimension.
         :param weight_decay: Constant multiple to decay weights by on each iteration.
         :param tc_eligibility_trace: Time constant for the eligibility trace.
         :param tc_reward: Time constant for the reward.
@@ -336,19 +341,14 @@ class STDP(ABC):
 
         # Initialize eligibility trace, time constants and reward
         if not hasattr(self.target, "eligibility_trace"):
-            self.target.eligibility_trace = torch.zeros(*self.connection.w.shape) 
+            self.target.eligibility_trace = torch.zeros(*self.connection.w.shape)
         self.tc_eligibility_trace = tc_eligibility_trace
         self.tc_minus = torch.tensor(tc_minus)
         self.tc_plus = torch.tensor(tc_plus)
         if not hasattr(self.connection, "reward_concentration"):
             self.connection.reward_concentration = torch.zeros(*self.connection.w.shape) # initialize the extracellular concentration of biogenic amine
         self.tc_reward = tc_reward
-        self.BA = 0 # nul for every t except t=40 ms
-
-        # Parameter update reduction across minibatch dimension.
-        if reduction is None:
-            reduction = torch.mean
-        self.reduction = reduction
+        self.BA = reward # nul for every t except t=40 ms
 
         # Weight decay.
         self.weight_decay = weight_decay
@@ -362,7 +362,7 @@ class STDP(ABC):
                 "This learning rule is not supported for this Connection type."
             )
 
-        # debug
+        # # debug
         self.cumul_weigth = self.connection.w.t()
         self.cumul_et = self.target.eligibility_trace.t()
         self.cumul_reward = self.connection.reward_concentration.t()
@@ -374,12 +374,13 @@ class STDP(ABC):
         """
         Post-pre learning rule method.
         """
-        if self.t == 40:
+        if self.t < 40 or self.t > 40 :
+            BA = 0
+        elif self.t == 40:
             print("reward")
-            self.BA = kwargs["reward"]   # amount of biogenic amine released 
+            BA = self.BA
+            # self.BA = kwargs["reward"]   # amount of biogenic amine released
                                     # NB : argument 'reward' is defined in Network() initialization, not in STDP()
-        elif self.t > 40:
-            self.BA = 0
 
         batch_size = self.source.batch_size
 
@@ -391,7 +392,7 @@ class STDP(ABC):
         nu = torch.where(delta_t > 0, self.nu[1], self.nu[0])
         nu = torch.where(delta_t == 0, torch.tensor(0.0), nu)
         STDP = nu * torch.exp(delta_t / tau)
-        
+
         # Update eligibility trace
         pre_post_spike_occured = self.connection.get_dirac()  # True or 1 if a spike occured either in pre or post neuron, False or 0 otherwise
         update = -self.target.eligibility_trace / self.tc_eligibility_trace + STDP * pre_post_spike_occured
