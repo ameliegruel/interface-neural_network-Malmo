@@ -128,7 +128,7 @@ class Izhikevich(Nodes):
         """
         super().reset_state_variables()
         self.v.fill_(self.rest)  # Neuron voltages.
-        self.u = self.b * self.v  # Neuron recovery.
+        self.u = torch.zeros(self.n)  # Neuron recovery.
 
     def set_batch_size(self, batch_size) -> None:
         # language=rst
@@ -139,7 +139,7 @@ class Izhikevich(Nodes):
         """
         super().set_batch_size(batch_size=batch_size)
         self.v = self.rest * torch.ones(batch_size, *self.shape, device=self.v.device)
-        self.u = self.b * self.v
+        self.u = torch.zeros(self.n)
 
 
 ######################################################################
@@ -155,6 +155,7 @@ class AllToAllConnection(ABC, Module):
         tc_synaptic: float = 0.0,
         phi: float = 0.0,
         nu: Optional[Union[float, Sequence[float]]] = None,
+        # reduction: Optional[callable] = None,
         weight_decay: float = 0.0,
         **kwargs
     ) -> None:
@@ -162,6 +163,8 @@ class AllToAllConnection(ABC, Module):
         :param source: A layer of nodes from which the connection originates.
         :param target: A layer of nodes to which the connection connects.
         :param nu: Learning rate for both pre- and post-synaptic events.
+        :param reduction: Method for reducing parameter updates along the minibatch
+            dimension.
         :param weight_decay: Constant multiple to decay weights by on each iteration.
 
         Keyword arguments:
@@ -184,11 +187,13 @@ class AllToAllConnection(ABC, Module):
 
         self.nu = nu
         self.weight_decay = weight_decay
+        # self.reduction = reduction
         
         self.update_rule = kwargs.get("update_rule", NoOp)
         self.wmin = kwargs.get("wmin", -np.inf)
         self.wmax = kwargs.get("wmax", np.inf)
         self.norm = kwargs.get("norm", None)
+        # self.decay = kwargs.get("decay", None)
         
         # Learning rule
         if self.update_rule is None:
@@ -197,6 +202,7 @@ class AllToAllConnection(ABC, Module):
         self.update_rule = self.update_rule(
             connection=self,
             nu=nu,
+            # reduction=reduction,
             weight_decay=weight_decay,
             **kwargs
         )
@@ -212,10 +218,10 @@ class AllToAllConnection(ABC, Module):
         self.v_rev = 0
 
         self.cumul_I = None
-        self.cumul_weigth = self.w.t()
-        if not hasattr(self.target, "eligibility_trace"):
-            self.target.eligibility_trace = torch.zeros(*self.w.shape)
-        self.cumul_et = self.target.eligibility_trace.t()
+        # self.cumul_weigth = self.w.t()
+        # if not hasattr(self.target, "eligibility_trace"):
+        #     self.target.eligibility_trace = torch.zeros(*self.w.shape)
+        # self.cumul_et = self.target.eligibility_trace.t()
 
     # Get dirac(delta_t)
     def get_dirac(self) : 
@@ -259,8 +265,8 @@ class AllToAllConnection(ABC, Module):
         """
         learning = kwargs["learning"]
 
-        self.cumul_weigth = torch.cat((self.cumul_weigth, self.w.t()),0)
-        self.cumul_et = torch.cat((self.cumul_et,self.target.eligibility_trace.t()),0)
+        # self.cumul_weigth = torch.cat((self.cumul_weigth, self.w.t()),0)
+        # self.cumul_et = torch.cat((self.cumul_et,self.target.eligibility_trace.t()),0)
 
         if learning:
             self.update_rule.update(**kwargs)
@@ -299,10 +305,10 @@ class STDP(ABC):
         self,
         connection: AllToAllConnection,
         nu: Optional[Union[float, Sequence[float]]] = None,
+        # reduction: Optional[callable] = None,
         weight_decay: float = 0.0,
         tc_eligibility_trace: float = 0.0,
         tc_reward: float = 0.0,
-        reward: float = 0.0,
         tc_minus: float = 0.0,
         tc_plus: float = 0.0,
         min_weight: float = 0.0,
@@ -313,6 +319,7 @@ class STDP(ABC):
 
         :param connection: An ``AbstractConnection`` object whose weights the ``PostPre`` learning rule will modify.
         :param nu: Single or pair of learning rates for pre- and post-synaptic events ().
+        :param reduction: Method for reducing parameter updates along the batch dimension.
         :param weight_decay: Constant multiple to decay weights by on each iteration.
         :param tc_eligibility_trace: Time constant for the eligibility trace.
         :param tc_reward: Time constant for the reward.
@@ -349,7 +356,12 @@ class STDP(ABC):
         if not hasattr(self.connection, "reward_concentration"):
             self.connection.reward_concentration = torch.zeros(*self.connection.w.shape) # initialize the extracellular concentration of biogenic amine
         self.tc_reward = tc_reward
-        self.BA = reward # nul for every t except t=40 ms
+        self.BA = 0 # nul for every t except t=40 ms
+
+        # Parameter update reduction across minibatch dimension.
+        # if reduction is None:
+        #     reduction = torch.mean
+        # self.reduction = reduction
 
         # Weight decay.
         self.weight_decay = weight_decay
@@ -376,16 +388,19 @@ class STDP(ABC):
         Post-pre learning rule method.
         """
         if self.t < 40 or self.t > 40 :
-            BA = 0
+            self.BA = 0
         elif self.t == 40:
             print("reward")
-            BA = self.BA
-            # self.BA = kwargs["reward"]   # amount of biogenic amine released
+            self.BA = kwargs["reward"]   # amount of biogenic amine released
                                     # NB : argument 'reward' is defined in Network() initialization, not in STDP()
 
         batch_size = self.source.batch_size
 
+        # pre_x = self.source.x.view(-1).unsqueeze(1)
+        # post_x = self.target.x.view(-1).unsqueeze(1)
+
         # Get STDP
+        # delta_t = pre_x - post_x
         delta_t = self.source.t_spike - self.target.t_spike
         delta_t = delta_t.t()
 
@@ -411,8 +426,6 @@ class STDP(ABC):
         if self.weight_decay:
             self.connection.w -= self.weight_decay * self.connection.w
 
-        print(kwargs.keys())
-        print(self.t)
         if self.t < self.n_timesteps: 
             self.t += 1
         else : 
