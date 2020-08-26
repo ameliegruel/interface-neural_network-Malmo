@@ -101,6 +101,7 @@ class World():
 
         DrawingDecorator = AntWorld.xpath("/Mission/ServerSection/ServerHandlers/DrawingDecorator")[0]
 
+        # arena's initialisation
         AirCuboid = DrawingDecorator.getchildren()[0]
         AirCuboid.attrib['x1'] = str(old_div(-self.ArenaSide,2))
         AirCuboid.attrib["y1"] = str(self.ArenaFloor)
@@ -108,13 +109,16 @@ class World():
         AirCuboid.attrib["x2"] = str(old_div(self.ArenaSide,2))
         AirCuboid.attrib["z2"] = str(old_div(self.ArenaSide,2))
 
+        # add obstacles
         self.GenRandomObject(DrawingDecorator)
 
+        # agent's initialisation
         AgentStartPlacement = AntWorld.xpath("/Mission/AgentSection/AgentStart/Placement")[0]
         AgentStartPlacement.attrib["x"] = str(self.xPos)
         AgentStartPlacement.attrib["y"] = str(self.ArenaFloor)
         AgentStartPlacement.attrib["z"] = str(self.zPos)
 
+        # video producer's initialisation
         VideoProducer = AntWorld.xpath("/Mission/AgentSection/AgentHandlers/VideoProducer")[0]
         variables_VideoProducer = {"Width": str(self.video_width), "Height": str(self.video_height)}
         for child in VideoProducer.getchildren():
@@ -383,7 +387,7 @@ class SensoryInformation():
 
     def getFrontVision(self, grid,side,yaw) :
         pos = int((side - 1)/2)
-        VisualField = self.GetVisualField(side,yaw)
+        VisualField = self.getVisualField(side,yaw)
         FrontVision = []
         i = 0
         for a in range(side) : 
