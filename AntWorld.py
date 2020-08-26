@@ -158,12 +158,12 @@ class Navigation():
         if last_command == None : 
             return random.choice(direction)
         elif BlocksInFront == ['air','air','air']:
-            return "z"
+            return "ahead"
         elif BlocksInFront != ['air','air','air']:  # tourner pour s'éloigner de l'obstacle ? 
             if BlocksInFront[0] == "air":
-                return "q"
+                return "left"
             elif BlocksInFront[2] == "air":
-                return "d"
+                return "right"
             else : 
                 return random.choice(direction)
 
@@ -230,45 +230,45 @@ class Navigation():
         Obstacles = self.getWhatIsInFront(round(ObsEnv["yaw"]), grid="GridObstacles")
 
         directions = {
-            BlocksInFront[0]: "q",
-            BlocksInFront[1]: "q",
-            BlocksInFront[2]: "q",
-            BlocksInFront[3]: "qz",
-            BlocksInFront[4]: "qz",
-            BlocksInFront[5]: "z",
-            BlocksInFront[6]: "z",
-            BlocksInFront[7]: "z",
-            BlocksInFront[8]: "z",
-            BlocksInFront[9]: "zd",
-            BlocksInFront[10]: "zd",
-            BlocksInFront[11]: "d",
-            BlocksInFront[12]: "d",
-            BlocksInFront[13]: "d",
+            BlocksInFront[0]: "left",
+            BlocksInFront[1]: "left",
+            BlocksInFront[2]: "left",
+            BlocksInFront[3]: "left-ahead",
+            BlocksInFront[4]: "left-ahead",
+            BlocksInFront[5]: "ahead",
+            BlocksInFront[6]: "ahead",
+            BlocksInFront[7]: "ahead",
+            BlocksInFront[8]: "ahead",
+            BlocksInFront[9]: "ahead-right",
+            BlocksInFront[10]: "ahead-right",
+            BlocksInFront[11]: "right",
+            BlocksInFront[12]: "right",
+            BlocksInFront[13]: "right",
         }
         BlocksWithGold = list(filter(lambda x: ObsEnv["GridPheromonesTrace"][x] == 'gold_block', BlocksInFront))
         if BlocksWithGold == [] :
-            return random.choice(["q","d"])
+            return random.choice(["left","right"])
         elif BlocksInFront[6] in BlocksWithGold and BlocksInFront[7] in BlocksWithGold and ObsEnv["GridObstacles"][Obstacles[2]] == "air":
-            return "z"
+            return "ahead"
         
         nb_BlocksInFront = {
-            "q": 0,
-            "qz": 0,
-            "z": 0,
-            "zd": 0,
-            "d": 0
+            "left": 0,
+            "left-ahead": 0,
+            "ahead": 0,
+            "ahead-right": 0,
+            "right": 0
         }
         for idx in BlocksWithGold:
             nb_BlocksInFront[directions[idx]] += 1
 
-        if ((nb_BlocksInFront["qz"] + nb_BlocksInFront["z"] > nb_BlocksInFront["q"]) or (nb_BlocksInFront["zd"] + nb_BlocksInFront["z"] > nb_BlocksInFront["d"])) and Obstacles[2] == "air":
-            return "z"
-        elif nb_BlocksInFront["qz"] + nb_BlocksInFront["q"] > nb_BlocksInFront["zd"] + nb_BlocksInFront["d"]:
-            return "q"
-        elif nb_BlocksInFront["qz"] + nb_BlocksInFront["q"] < nb_BlocksInFront["zd"] + nb_BlocksInFront["d"]:
-            return "d"
+        if ((nb_BlocksInFront["left-ahead"] + nb_BlocksInFront["ahead"] > nb_BlocksInFront["left"]) or (nb_BlocksInFront["ahead-right"] + nb_BlocksInFront["ahead"] > nb_BlocksInFront["right"])) and Obstacles[2] == "air":
+            return "ahead"
+        elif nb_BlocksInFront["left-ahead"] + nb_BlocksInFront["left"] > nb_BlocksInFront["ahead-right"] + nb_BlocksInFront["right"]:
+            return "left"
+        elif nb_BlocksInFront["left-ahead"] + nb_BlocksInFront["left"] < nb_BlocksInFront["ahead-right"] + nb_BlocksInFront["right"]:
+            return "right"
         else :
-            return random.choice(["q","d"])
+            return random.choice(["left","right"])
 
 
     def AgentMove(
