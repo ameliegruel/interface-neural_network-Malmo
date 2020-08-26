@@ -16,7 +16,7 @@ timeRandomNav = 100 # time during which agent is randomly walking around, leavin
 
 nb_world_ticks = 0
 plots = {}
-last_com = "z"
+last_com = "ahead"
 
 path_StartToEnd = True
 path_EndToStart = False
@@ -147,21 +147,19 @@ while world_state.is_mission_running :
             for height in range(ArenaFloor, ArenaFloor+4):  
                 agent_host.sendCommand('chat /setblock ' + str(path_end["x"]) + ' ' + str(height) + ' ' + str(path_end["z"]) + ' emerauld_block')
         
-            # faces the other way
-            agent_host.sendCommand("move 0")
-            agent_host.sendCommand("turn -1")
-            time.sleep(1)
-            agent_host.sendCommand("turn 0")
+            ant_navigator.AgentMove("U-turn")   # faces the other way
 
             path_StartToEnd = True
             path_EndToStart = False
         
         elif path_StartToEnd == True :  # find most familar views : the gaent stops and compare 3 different views
             most_familiar_view = {"EN": None, "direction": None}
-            turn_to_test_views = {"right": "q", "ahead": "d", "left": "d"}
+            turn_to_test_views = {"left": "left", "ahead": "right", "right": "right"}  
+                    # the keys corresponds to the direction when the ant is facing ahead 
+                    # the items corresponds to the movement the ant has to do scucessively in order to face those directions
 
-            for direction in ["right","ahead","left"]:  
-                ant_navigator.AgentTurn(turn_to_test_views[direction])  # turn once to the right, then turn twice to the left, each time to get ant's vision
+            for direction in turn_to_test_views.keys():  
+                ant_navigator.AgentMove(turn_to_test_views[direction])  # turn once to the right, then turn twice to the left, each time to get ant's vision
                 ant_view = np.array([sensory_info.getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
                 autonomous_ant.reactionToRandomNavigation(ant_view, phase="test")
                 
@@ -169,23 +167,19 @@ while world_state.is_mission_running :
                     most_familiar_view["EN"] = autonomous_ant.nb_spikes_EN
                     most_familiar_view["direction"] = direction
             
-            ant_navigator.AgentTurn("q") # agent returns in original axe
-            turn_to_most_familar_view = {"right": "q", "ahead": "z", "left": "d"} 
-            com = turn_to_most_familar_view[most_familiar_view["direction"]]
+            ant_navigator.AgentMove("left") # agent returns in original axe
+            com = most_familiar_view["direction"]
 
         elif path_end == True :
-            agent_host.sendCommand("move 0")
-            agent_host.sendCommand("turn -1")
-            time.sleep(1)
-            agent_host.sendCommand("turn 0")
+            ant_navigator.AgentMove("U-turn") # faces the other way
+
+            path_StartToEnd = False
+            path_EndToStart = True
         
 
     # turn 
-    ant_navigator.AgentTurn(com)
-
-    agent_host.sendCommand("move 1")
-    time.sleep(0.25)
-    agent_host.sendCommand("move 0")
+    ant_navigator.AgentMove(com)
+    ant_navigator.AgentMove("ahead")
 
     nb_world_ticks += 1
     last_com = com

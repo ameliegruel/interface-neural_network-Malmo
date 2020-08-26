@@ -271,18 +271,28 @@ class Navigation():
             return random.choice(["q","d"])
 
 
-    def AgentTurn(
+    def AgentMove(
         self,
         com):
         
-        if com=="q":
+        if com=="left":
             self.agent_host.sendCommand("turn -1")
             time.sleep(0.25)
             self.agent_host.sendCommand("turn 0")
-        elif com=="d":
+        elif com=="right":
             self.agent_host.sendCommand("turn 1")
             time.sleep(0.25)
             self.agent_host.sendCommand("turn 0")
+        elif com=="ahead":
+            self.agent_host.sendCommand("move 1")
+            time.sleep(0.25)
+            self.agent_host.sendCommand("move 0")
+        elif com=="U-turn":
+            self.agent_host.sendCommand("move 0")
+            self.agent_host.sendCommand("turn -1")
+            time.sleep(1)
+            self.agent_host.sendCommand("turn 0")
+
 
 
 
