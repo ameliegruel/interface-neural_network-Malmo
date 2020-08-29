@@ -16,7 +16,7 @@ Les deux fichiers ``MalmoPython.lib`` et ``MalmoPython.pyd`` permettent l'import
 
 Les protocoles mis en place afin d'étudier l'apprentissage du réseau sur images statiques sont :
 * ``reaction2figure.py`` : permet de comparer les réactions du réseau lorsqu'il est présenté à une même image avant, pendant et après apprentissage. 
-* ``LM_model.py`` : permet de tester l'aptitude du réseau à reconnaître l'image qu'il a appris parmis trois qui lui sont proposées. 
+* ``LM_model.py`` : permet de tester l'aptitude du réseau à reconnaître l'image qu'il a appris parmis trois qui lui sont proposées.  
 Le dossier ``views`` contient le fichier texte correspondant aux images données en entrée à ces deux protocoles. 
 
 Le script JavaScript ``ant_view.js`` est un plugin du logiciel **ImageJ**, permettant de visualiser une vue de l'agent après traitement de l'image (noir et blanc, redimension, négatif, égalisation de l'histogramme et normalisation). 
