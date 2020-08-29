@@ -1,17 +1,29 @@
 # Développement d'un réseau neuronal adapté à la réalisation d'une tâche de survie
 
-Projet de 6 mois en Python 3  
+Projet de 6 mois (mars à août 2020) en Python 3 - supervisé par Dr André Garenne, au sein de l'équipe Mnémosyne (INRIA Bordeaux)    
 Implémentation du réseau de neurones développé par Ardin et al. (*PLOS Computational Biology*, 2016) à l'aide de la bibliothèque **BindsNET**  
 Implémentation de l'interface sensori-motrice et du monde virtuel avec la plateforme **Malmo**  
 
 ## 1. Structure du projet
 
-Le projet principal est implémenté au sein des trois scripts suivants :
+Le projet principal est implémenté au sein des quatre scripts suivants :
 * ``AntWorld.py`` : contient les quatre classes permettant l'initialisation du monde virtuel, la navigation, la réception d'information sensorielle ainsi que l'implémentation de l'agent autonome (dirigé par le réseau de neurones). Il exploite des classes de la plateforme **Malmo**.
+* ``ant_world.xml`` : contient le XML décrivant le monde virtuel implémenté dans **Malmo**.
 * ``AntLearning.py`` : contient les trois classes décrivant le formalisme d'Izhikevich, le modèle synaptique et la règle d'apprentissage à trois facteurs. Il exploite les classes de la bibliothèque **BindsNET**.
 * ``AntSimulation.py`` : appelle les classes des deux scripts précédents et les met en interaction selon un protocole de simulation sensori-motrice.
 
-Les deux fichiers ``MalmoPython.lib`` et ``MalmoPython.pyd`` permettent l'import de la bibliothèque **MalmoPython** donc l'exploitation de la plateforme virtuelle **Malmo**. Ces fichiers doivent impérativement être présents dans le même répertoire que ``AntWorld.py``, ``AntLearning.py`` et ``AntSimulation.py`` afin que l'import soit réussi et la simulation se lance.
+Les deux fichiers ``MalmoPython.lib`` et ``MalmoPython.pyd`` permettent l'import de la bibliothèque **MalmoPython** donc l'exploitation de la plateforme virtuelle **Malmo**. Ces fichiers doivent impérativement être présents dans le même répertoire que les quatre dossiers ci-dessus afin que l'import soit réussi et la simulation se lance.
+
+Les protocoles mis en place afin d'étudier l'apprentissage du réseau sur images statiques sont :
+* ``reaction2figure.py`` : permet de comparer les réactions du réseau lorsqu'il est présenté à une même image avant, pendant et après apprentissage. 
+* ``LM_model.py`` : permet de tester l'aptitude du réseau à reconnaître l'image qu'il a appris parmis trois qui lui sont proposées. 
+Le dossier ``views`` contient le fichier texte correspondant aux images données en entrée à ces deux protocoles. 
+
+Le script JavaScript ``ant_view.js`` est un plugin du logiciel **ImageJ**, permettant de visualiser une vue de l'agent après traitement de l'image (noir et blanc, redimension, négatif, égalisation de l'histogramme et normalisation). 
+
+Le script ``interface.py`` correspond à l'interface implémentée lors d'un premier stage sous la supervision d'André Garenne en juin 2019. 
+
+Le script ``nodes_bindsnet.py`` permet de comparer l'évolution d'un neurone de type LIF, CurrentLIF, AdaptiveLIF ou Izhikevich pendant 50 ms selon l'implémentation **BindsNET**.
 
 ## 2. Installation de Malmo
 
