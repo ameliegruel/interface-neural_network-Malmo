@@ -6,6 +6,13 @@ Implémentation de l'interface sensori-motrice et du monde virtuel avec la plate
 
 ## 1. Structure du projet
 
+Le projet principal est implémenté au sein des trois scripts suivants :
+* ``AntWorld.py`` : contient les quatre classes permettant l'initialisation du monde virtuel, la navigation, la réception d'information sensorielle ainsi que l'implémentation de l'agent autonome (dirigé par le réseau de neurones). Il exploite des classes de la plateforme **Malmo**.
+* ``AntLearning.py`` : contient les trois classes décrivant le formalisme d'Izhikevich, le modèle synaptique et la règle d'apprentissage à trois facteurs. Il exploite les classes de la bibliothèque **BindsNET**.
+* ``AntSimulation.py`` : appelle les classes des deux scripts précédents et les met en interaction selon un protocole de simulation sensori-motrice.
+
+Les deux fichiers ``MalmoPython.lib`` et ``MalmoPython.pyd`` permettent l'import de la bibliothèque **MalmoPython** donc l'exploitation de la plateforme virtuelle **Malmo**. Ces fichiers doivent impérativement être présents dans le même répertoire que ``AntWorld.py``, ``AntLearning.py`` et ``AntSimulation.py`` afin que l'import soit réussi et la simulation se lance.
+
 ## 2. Installation de Malmo
 
 ### a) Installation de Malmo sur Windows 10
@@ -33,4 +40,4 @@ La dernière ligne affichée par la terminal indiquera "Building 95\%" : ne vous
 Une fois la fenêtre Minecraft lancée, il faut ouvrir un nouveau terminal et entrer les commandes suivantes :  
 ``cd Python_Examples``  
 ``python3 run_mission.py``  
-Une fois cet exemple réalisé, on peut suivre des tutoriels fournis par Malmo et expliqué sur le document suivant : https//github.com/Microsoft/malmo/blob/master/Malmo/samples/Python\_examples/Tutorial.pdf
+Une fois cet exemple réalisé, on peut suivre des tutoriels fournis par Malmo et expliqué sur le document suivant : https://github.com/Microsoft/malmo/blob/master/Malmo/samples/Python\_examples/Tutorial.pdf
