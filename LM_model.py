@@ -96,8 +96,8 @@ def LM_model(
     connection_weight = torch.zeros(input_layer.n, PN.n).scatter_(1,torch.tensor([[i,i] for i in range(PN.n)]),1.)
     input_PN = Connection(source=input_layer, target=PN, w=connection_weight)
 
-    connection_weight = PN_KC_weight * torch.ones(PN.n, KC.n).t()
-    connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.)
+    connection_weight = torch.zeros(PN.n, KC.n).t()
+    connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(PN.n, size=10, replace=False) for i in range(KC.n)]).long(), PN_KC_weight)
     PN_KC = AllToAllConnection(source=PN, target=KC, w=connection_weight.t(), tc_synaptic=3.0, phi=0.93)
 
     KC_EN = AllToAllConnection(source=KC, target=EN, w=torch.ones(KC.n, EN.n)*2.0, tc_synaptic=8.0, phi=8.0)

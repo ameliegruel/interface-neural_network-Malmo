@@ -533,8 +533,8 @@ class AutonomousAgent():
         connection_weight = torch.zeros(self.input_layer.n, self.PN.n).scatter_(1,torch.tensor([[i,i] for i in range(self.PN.n)]),1.)
         self.input_PN = Connection(source=self.input_layer, target=self.PN, w=connection_weight)
 
-        connection_weight = PN_KC_weight * torch.ones(self.PN.n, self.KC.n).t()
-        connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(connection_weight.size(1), size=connection_weight.size(1)-10, replace=False) for i in range(connection_weight.size(0))]).long(), 0.)
+        connection_weight = torch.zeros(PN.n, KC.n).t()
+        connection_weight = connection_weight.scatter_(1, torch.tensor([np.random.choice(PN.n, size=10, replace=False) for i in range(KC.n)]).long(), PN_KC_weight)
         self.PN_KC = AllToAllConnection(source=self.PN, target=self.KC, w=connection_weight.t(), tc_synaptic=3.0, phi=0.93)
 
         self.KC_EN = AllToAllConnection(source=self.KC, target=self.EN, w=torch.ones(self.KC.n, self.EN.n)*2.0, tc_synaptic=8.0, phi=8.0)
