@@ -4,6 +4,12 @@ Projet de 6 mois (mars à août 2020) en Python 3 - supervisé par Dr André Gar
 Implémentation du réseau de neurones développé par Ardin et al. (*PLOS Computational Biology*, 2016) à l'aide de la bibliothèque **BindsNET**  
 Implémentation de l'interface sensori-motrice et du monde virtuel avec la plateforme **Malmo**  
 
+Pour exécuter le projet sur Windows 10, ouvrir deux terminaux de commande : 
+* dans le premier terminal, se placer dans le répertoire Malmo\Minecraft puis  
+``launchClient.bat``
+* dans le second terminal, se placer dans le répertoire GitHub puis  
+``python AntSimulation.py``
+
 ## 1. Structure du projet
 
 Le projet principal est implémenté au sein des quatre scripts suivants :
