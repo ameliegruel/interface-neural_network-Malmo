@@ -25,7 +25,20 @@ Le script ``interface.py`` correspond à l'interface implémentée lors d'un pre
 
 Le script ``nodes_bindsnet.py`` permet de comparer l'évolution d'un neurone de type LIF, CurrentLIF, AdaptiveLIF ou Izhikevich pendant 50 ms selon l'implémentation **BindsNET**.
 
-## 2. Installation de Malmo
+## 2. Installation de BindsNET
+
+### a) Sur Windows 10
+
+La bibliothèque BidnsNET demande que Python soit sous la version 3.6. Les commandes à effectuer sont les suivantes : 
+``git clone https://github.com/Hananel-Hazan/bindsnet.git``
+``cd bindsnet/``
+``pip install -e .``
+
+Afin de tester l'installation, il suffit d"exécuter la commande ``python -m pytest test``. Si tout se déroule correctement, 5 figures MatPlotLib apparaissent, résultats de l'exécution des divers fichiers tests implémentés dans le répertoire BindsNET.
+
+Des informations complémentaires sont présentées sur le site : https://bindsnet-docs.readthedocs.io/index.html
+
+## 3. Installation de Malmo
 
 ### a) Installation de Malmo sur Windows 10
 
