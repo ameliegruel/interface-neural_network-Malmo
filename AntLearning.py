@@ -155,7 +155,6 @@ class AllToAllConnection(ABC, Module):
         tc_synaptic: float = 0.0,
         phi: float = 0.0,
         nu: Optional[Union[float, Sequence[float]]] = None,
-        # reduction: Optional[callable] = None,
         weight_decay: float = 0.0,
         **kwargs
     ) -> None:
@@ -305,7 +304,6 @@ class STDP(ABC):
         self,
         connection: AllToAllConnection,
         nu: Optional[Union[float, Sequence[float]]] = None,
-        # reduction: Optional[callable] = None,
         weight_decay: float = 0.0,
         tc_eligibility_trace: float = 0.0,
         tc_reward: float = 0.0,
@@ -357,11 +355,6 @@ class STDP(ABC):
             self.connection.reward_concentration = torch.zeros(*self.connection.w.shape) # initialize the extracellular concentration of biogenic amine
         self.tc_reward = tc_reward
         self.BA = 0 # nul for every t except t=40 ms
-
-        # Parameter update reduction across minibatch dimension.
-        # if reduction is None:
-        #     reduction = torch.mean
-        # self.reduction = reduction
 
         # Weight decay.
         self.weight_decay = weight_decay
