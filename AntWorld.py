@@ -555,7 +555,6 @@ class AutonomousAgent():
         self.landmark_guidance.add_monitor(monitor=PN_monitor, name="PN monitor")
         self.landmark_guidance.add_monitor(monitor=KC_monitor, name="KC monitor")
         self.landmark_guidance.add_monitor(monitor=EN_monitor, name="EN monitor")
-        print(datetime.datetime.now()-begin_time)
 
         # plots
         self.plots = {}
