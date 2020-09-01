@@ -516,7 +516,6 @@ class AutonomousAgent():
         EN_thresh=-40.0,
         ):
 
-        begin_time = datetime.datetime.now()
         self.landmark_guidance = Network(dt=dt)
 
         # layers
@@ -575,7 +574,6 @@ class AutonomousAgent():
         plot_option=None):
 
         self.landmark_guidance.reset_state_variables()
-        begin_time = datetime.datetime.now()
         dt = self.landmark_guidance.dt
         
         input_data = {"Input": torch.from_numpy(modification * np.array([ant_view if i <= exposition_time else np.zeros((1,10,36)) for i in range(int(simulation_time/dt))]))}
@@ -602,7 +600,6 @@ class AutonomousAgent():
 
         if plot_option != None : 
             self.plotReactionNetwork(self.plots, plot_option)
-        print(datetime.datetime.now() - begin_time)
 
 
 
