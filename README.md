@@ -72,3 +72,10 @@ Une fois la fenêtre Minecraft lancée, il faut ouvrir un nouveau terminal et en
 ``cd Python_Examples``  
 ``python3 run_mission.py``  
 Une fois cet exemple réalisé, on peut suivre des tutoriels fournis par Malmo et expliqué sur le document suivant : https://github.com/Microsoft/malmo/blob/master/Malmo/samples/Python\_examples/Tutorial.pdf
+
+### 4. Déroulement d'une simulation en boucle fermée
+
+<p style="text-align: center;">
+![alt text](https://github.com/adam-p/markdown-here/raw/master/src/common/images/icon48.png "Algorigramme")
+Algorigramme du script \texttt{AntSimulation.py}, présentant le déroulé d'une mission de simulation du modèle neuronal de \textit{landmark guidance} en milieu virtuel
+</p>
