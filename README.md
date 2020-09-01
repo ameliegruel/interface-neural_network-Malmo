@@ -75,7 +75,6 @@ Une fois cet exemple réalisé, on peut suivre des tutoriels fournis par Malmo e
 
 ### 4. Déroulement d'une simulation en boucle fermée
 
-<p style="text-align: center;">
-![Algorigramme](https://user-images.githubusercontent.com/43147713/91883190-60acd880-ec84-11ea-8029-ff76eb94eba6.png)  
+![AntSimulation](https://user-images.githubusercontent.com/43147713/91883190-60acd880-ec84-11ea-8029-ff76eb94eba6.png)
+
 Algorigramme du script \texttt{AntSimulation.py}, présentant le déroulé d'une mission de simulation du modèle neuronal de \textit{landmark guidance} en milieu virtuel
-</p>
