@@ -412,7 +412,7 @@ class SensoryInformation():
         FrontVision[pos][pos] = "X"
         return FrontVision
 
-    def visualizeFrontVison(self, FrontVision) :
+    def visualizeFrontVision(self, FrontVision) :
         for a in FrontVision :
             for b in a :
                 print(b,end='\t')
