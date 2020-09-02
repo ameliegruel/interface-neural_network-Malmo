@@ -107,6 +107,7 @@ while world_state.is_mission_running :
     ObsEnv = {"xPos": ObsJSON["XPos"], "yPos": ObsJSON["YPos"], "zPos": ObsJSON["ZPos"], "yaw": sensory_info.getYaw(-ObsJSON["Yaw"])}
     ObsEnv["GridPheromonesTrace"] = ObsJSON["PheromonesTrace"] # permet de récupérer ce que l'agent perçoit au niveau des phéromones
     ObsEnv["GridObstacles"] = ObsJSON["Obstacles"] # permet de dire si l'agent s'approche d'un obstacle
+    ObsEnv["FrontEnv21x21"] = ObsJSON["FrontEnv21x21"] # permet de récuperer ce que l'agent voir à 10 blocs
 
     
     direction = ["q","d"]
@@ -117,6 +118,7 @@ while world_state.is_mission_running :
             ### get ant's vision
             ant_view = np.array([sensory_info.getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
             autonomous_ant.reactionToRandomNavigation(ant_view, phase="learning")
+            # sensory_info.visualizeFrontVision(sensory_info.getFrontVision(ObsEnv["FrontEnv21x21"],ArenaSide, ObsEnv['yaw']))
 
     elif nb_world_ticks == timeRandomNav:
         ant_navigator.addPheromones(ObsEnv,agent_host,turn=True)
