@@ -529,7 +529,7 @@ class AutonomousAgent():
         self.landmark_guidance.add_layer(layer=self.EN, name="EN")
 
         # connections
-        connection_weight = torch.zeros(self.input_layer.n, self.PN.n).scatter_(1,torch.tensor([[i,i] for i in range(self.PN.n)]),1.)
+        connection_weight = torch.zeros(self.input_layer.n, self.PN.n).fill_diagonal_(1)
         self.input_PN = Connection(source=self.input_layer, target=self.PN, w=connection_weight)
 
         connection_weight = torch.zeros(self.PN.n, self.KC.n).t()
