@@ -144,7 +144,7 @@ while world_state.is_mission_running :
         
         if path_start == True :  # the agent just reached the beginning of the path (diamond blocks tour) and will try to find its path using the views it learned
             for height in range(ArenaFloor, ArenaFloor+4):  
-                agent_host.sendCommand('chat /setblock ' + str(END["x"]) + ' ' + str(height) + ' ' + str(END["z"]) + ' emerauld_block')
+                agent_host.sendCommand('chat /setblock ' + str(END["x"]) + ' ' + str(height) + ' ' + str(END["z"]) + ' emerald_block')
         
             ant_navigator.AgentMove("U-turn")   # faces the other way
 
