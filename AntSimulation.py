@@ -12,7 +12,7 @@ zPos = 0
 video_height = 600
 video_width = 800
 
-timeRandomNav = 100 # time during which agent is randomly walking around, leaving pheromones behind him (at the end of that, turn around and try to follow the pheromones) 
+timeRandomNav = 50 # time during which agent is randomly walking around, leaving pheromones behind him (at the end of that, turn around and try to follow the pheromones) 
 
 nb_world_ticks = 0
 plots = {}
@@ -96,9 +96,9 @@ while world_state.is_mission_running :
     for error in world_state.errors:
         print("Error:",error.text)
     for reward in world_state.rewards:
-        if reward.getValue() == 100.0:
+        if reward.getValue() >= 100.0:
             path_start = True
-        elif reward.getValue() == -100.0:
+        elif reward.getValue() <= -100.0:
             path_end = True
 
     # Observations
@@ -113,7 +113,7 @@ while world_state.is_mission_running :
     direction = ["q","d"]
     if nb_world_ticks < timeRandomNav:
         ant_navigator.addPheromones(ObsEnv,agent_host) 
-        com= ant_navigator.randomNavigator(ObsEnv, direction,last_com)
+        com = ant_navigator.randomNavigator(ObsEnv, direction,last_com)
         if nb_world_ticks % 20 == 0:
             ### get ant's vision
             ant_view = np.array([sensory_info.getAntView(video_height,video_width,world_state.video_frames[0].pixels)])
@@ -129,7 +129,7 @@ while world_state.is_mission_running :
             agent_host.sendCommand('chat /setblock ' + str(xPos) + ' ' + str(height) + ' ' + str(zPos) + ' diamond_block')
         
         # get the current location
-        path_end = {"x": ObsEnv["xPos"], "z": ObsEnv["zPos"]}
+        END = {"x": ObsEnv["xPos"], "z": ObsEnv["zPos"]}
 
         # faces the other way
         agent_host.sendCommand("move 0")
@@ -142,18 +142,24 @@ while world_state.is_mission_running :
     
     elif nb_world_ticks > timeRandomNav : 
         
-        if path_EndToStart == True :
-            com = ant_navigator.followPheromonesPath(ObsEnv, agent_host)
-
-        elif path_start == True :  # the agent just reached the beginning of the path (diamond blocks tour) and will try to find its path using the views it learned
+        if path_start == True :  # the agent just reached the beginning of the path (diamond blocks tour) and will try to find its path using the views it learned
             for height in range(ArenaFloor, ArenaFloor+4):  
-                agent_host.sendCommand('chat /setblock ' + str(path_end["x"]) + ' ' + str(height) + ' ' + str(path_end["z"]) + ' emerauld_block')
+                agent_host.sendCommand('chat /setblock ' + str(END["x"]) + ' ' + str(height) + ' ' + str(END["z"]) + ' emerauld_block')
         
             ant_navigator.AgentMove("U-turn")   # faces the other way
 
             path_StartToEnd = True
             path_EndToStart = False
         
+        elif path_end == True :
+            ant_navigator.AgentMove("U-turn") # faces the other way
+
+            path_StartToEnd = False
+            path_EndToStart = True
+        
+        elif path_EndToStart == True :
+            com = ant_navigator.followPheromonesPath(ObsEnv, agent_host)
+
         elif path_StartToEnd == True :  # find most familar views : the gaent stops and compare 3 different views
             most_familiar_view = {"EN": None, "direction": None}
             turn_to_test_views = {"left": "left", "ahead": "right", "right": "right"}  
@@ -172,12 +178,6 @@ while world_state.is_mission_running :
             ant_navigator.AgentMove("left") # agent returns in original axe
             com = most_familiar_view["direction"]
 
-        elif path_end == True :
-            ant_navigator.AgentMove("U-turn") # faces the other way
-
-            path_StartToEnd = False
-            path_EndToStart = True
-        
 
     # turn 
     ant_navigator.AgentMove(com)
