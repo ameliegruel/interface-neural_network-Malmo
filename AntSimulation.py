@@ -185,6 +185,8 @@ while world_state.is_mission_running :
 
     nb_world_ticks += 1
     last_com = com
+    path_start = False
+    path_end = False
 
 print()
 print("Mission ended")
